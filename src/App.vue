@@ -1,6 +1,9 @@
 <script setup>
 import { ref } from "vue";
 
+let timer = null;
+const time = ref(0);
+
 const alwaysOnTop = ref(false);
 const recordCatches = ref(false);
 
@@ -46,6 +49,16 @@ window.ipcRenderer.on("cast", (
   catchHour.value = 0;
   catchMinute.value = 0;
   fishCatch.value = "";
+
+  clearInterval(timer)
+  time.value = 0;
+  timer = setInterval(function() {
+    time.value++;
+  })
+})
+
+window.ipcRenderer.on("bite", () => {
+  clearInterval(timer)
 })
 
 window.ipcRenderer.on("catch", (ipcCatch) => {
@@ -59,6 +72,8 @@ window.ipcRenderer.on("catch", (ipcCatch) => {
     catchHour: catchHour.value,
     catchMinute: catchMinute.value
   })
+
+  time.value = 0;
 })
 
 function onSetWindowClick() {
@@ -131,6 +146,7 @@ function onBaitChange() {
         <div>Catch: {{ fishCatch }}</div>
       </div>
       <button @click="debugCatch">Test catch</button>
+      <div>{{ time }}</div>
     </div>
   </div>
 </template>

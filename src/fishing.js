@@ -3,6 +3,9 @@ const path = require('path');
 const fs = require('fs');
 const { app, BrowserWindow, ipcMain } = require('electron');
 
+// Nut
+const { mouse, Button } = require('@nut-tree/nut-js');
+
 // Packet modules
 const ip = require("ip");
 const Cap = require('cap').Cap;
@@ -26,7 +29,6 @@ const appName = 'Mortal Online 2 Fishing';
 if (!fs.existsSync(path.join(app.getPath('appData'), appName))) {
 	fs.mkdirSync(path.join(app.getPath('appData'), appName))
 }
-
 
 // DB init
 const sqlite3 = require('sqlite3').verbose();
@@ -103,6 +105,7 @@ export class Fishing {
 		/** @type {string} */ this.fishingDepth = "";
 		
 		// Fishing activity states
+		/** @type {number}  */ this.weight				= 0;
 		/** @type {boolean} */ this.isFishHooked	= false;
 		/** @type {boolean} */ this.fishIsPulling = false;
 		/** @type {number} 	*/ this.biteInterval 	= 0;
@@ -117,6 +120,7 @@ export class Fishing {
 	}
 
 	reset() {
+		this.weight					= 0;
 		this.isFishHooked 	= false;
 		this.fishIsPulling 	= false;
 		this.biteInterval 	= 0;
@@ -135,13 +139,23 @@ export class Fishing {
 	 * @param {string} bufferString 
 	 * @returns {ACTION_TYPE}
 	 */
-	fishActionType(bufferString) {
+	fishActionType(bufferString, bufferHex) {
 		let newlines = bufferString.match(/(\n)/gm) || [];
 		let bracketExists = bufferString.slice(0, 1) === "[";
+		const actionCharStart = bufferHex.slice(0, 2);
+		const actionChar = bufferHex.slice(95, 96);
+		const hpPull = parseInt(bufferHex.slice(44, 46), 16);
 
-		if (!this.fishIsPulling && newlines.length % 2 === 0) {
+		// console.log(bufferHex)
+		// if (!this.fishIsPulling && newlines.length % 2 === 0) {
+		if (actionCharStart === "3f" && (actionChar === "9" || actionChar === "b")) {
+			// console.log("pull \n", bufferString);
+			console.log("pull ", hpPull);
 			return ACTION_TYPE.PULL;
-		} else if (this.fishIsPulling && (newlines.length % 2 === 1) || bracketExists) {
+		// } else if (this.fishIsPulling && (newlines.length % 2 === 1) || bracketExists) {
+		} else if (actionCharStart === "5b" || actionChar === "a") {
+			// console.log("release \n", bufferString);
+			console.log("release ", hpPull, actionChar);
 			return ACTION_TYPE.RELEASE;
 		}
 	}
@@ -150,13 +164,21 @@ export class Fishing {
 	 * @param {string} bufferString 
 	 * @returns {void}
 	 */
-	handleForce(bufferString) {
-		switch (this.fishActionType(bufferString)) {
+	async handleForce(bufferString, bufferHex) {
+		switch (this.fishActionType(bufferString, bufferHex)) {
 			case ACTION_TYPE.PULL:
+				if ((this.pullCount + 2) * this.weight >= 50) {
+					await mouse.pressButton(Button.RIGHT);
+				}
+				this.pullCount++;
 				this.isFishHooked = true;
 				this.fishIsPulling = true;
 				break;
 			case ACTION_TYPE.RELEASE:
+				if ((this.pullCount + 2) * this.weight >= 50) {
+					await mouse.releaseButton(Button.RIGHT);
+					console.log("released.ae.ae.ae");
+				}
 				this.fishIsPulling = false;
 				break;
 		}
@@ -177,15 +199,20 @@ export class Fishing {
 		}, 1);
 	}
 
+	isBitePacket(bufferHex) {
+		if (bufferHex.slice(39, 40) === "7") {
+			return true;
+		} else {
+			return false;
+		}
+	}
+
 	isCastPacket(bufferString) {
 		const waterTypeMatches = bufferString.match(/(?<=Water\=).+?(?=\,)/g);
 		let water = waterTypeMatches &&
 								waterTypeMatches.length &&
 								waterTypeMatches[0].split("_")[1];
 		if (water) {
-			console.log(bufferString);
-			let newlines = bufferString.match(/(\n)/gm) || [];
-			console.log(newlines);
 			this.reset();
 			const waterDepthMatches = bufferString.match(/(?<=WaterDepth=).+?(?=\,)/g);
 			const fishingDepthMatches = bufferString.match(/(?<=FishingDepth=).+?(?=\,)/g);
@@ -242,7 +269,7 @@ export class Fishing {
 		
 			// String up that packet
 			const bufferString = buffer.toString('binary', tcpret.offset, tcpret.offset + datalen);
-		
+			const bufferHex = buffer.toString('hex', tcpret.offset, tcpret.offset + datalen)
 			// Match and organize our possible catches (TODO: fish and catchMatches the same??)
 			const fish = JSON.stringify(bufferString).match(/(?<=fish\.).+?(?=\\)/g);
 			const catchMatches = bufferString.match(/Resources[a-zA-Z]*\b/g);
@@ -252,27 +279,38 @@ export class Fishing {
 			// Catch detection
 			if ((catchMatches && fish) || amuletMatches || ringMatches) {
 				this.mainWindow.webContents.send("catch", fish[0]);
+				await mouse.releaseButton(Button.LEFT);
+				await new Promise(function(res) {
+					setTimeout(function() {
+						res();
+					}, 100);
+				})
+				mouse.config.autoDelayMs = 30;
+				await mouse.pressButton(Button.LEFT);
+				await mouse.releaseButton(Button.LEFT);
 			}
 
 			// Cast detection
 			if (ipret.info.totallen === 645) {
-				this.isCastPacket(bufferString);
+				this.isCastPacket(bufferString, bufferHex);
 			}
 		
 			// Pull and release actions -B
 			if (forcePacketLengths.includes(ipret.info.totallen)) {
-				this.handleForce(bufferString);
+				await this.handleForce(bufferString, bufferHex);
 			}
 		
 			// Bites -B
 			if (
 				ipret.info.totallen === 77 &&
 				this.isFishHooked === false &&
-				this.biteInterval > 0 && 
-				this.biteInterval < 180
+				this.isBitePacket(bufferHex)
 			) {
 				this.isFishHooked = true;
 				this.biteInterval = 0;
+				await mouse.pressButton(Button.LEFT);
+				console.log(bufferHex);
+				this.mainWindow.webContents.send("bite");
 			}
 		
 			// Nibbles -B
@@ -281,21 +319,14 @@ export class Fishing {
 				this.biteInterval = 0;
 			}
 
-			if (ipret.info.totallen === 77 && this.isFishHooked === true) {
-				this.damageCount++;
-				console.log("test", bufferString)
-				console.log("new count", this.damageCount);
+			if (ipret.info.totallen === 77 && this.isFishHooked === true && ["7", "e"].includes(bufferHex.slice(39, 40))) {
+				console.log("hp", parseInt(bufferHex.slice(44, 46), 16))
 			}
 
-			if (ipret.info.totallen === 77 && this.isFishHooked === false && this.currentWater  !== "") {
-				console.log(bufferString);
+			if (ipret.info.totallen === 77 && this.isFishHooked === true && ["8"].includes(bufferHex.slice(39, 40))) {
+				console.log("weight", parseInt(bufferHex.slice(44, 46), 16))
+				this.weight = parseInt(bufferHex.slice(44, 46), 16)
 			}
 		});
 	}
 }
-
-
-
-
-
-

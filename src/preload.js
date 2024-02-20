@@ -15,7 +15,7 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
     }
   },
   on: (channel, func) => {
-    let validChannels = ['cast', 'catch', 'reset-record'] // <-- Array of all ipcMain Channels used in the electron
+    let validChannels = ['cast', 'catch', 'reset-record', 'bite'] // <-- Array of all ipcMain Channels used in the electron
     if (validChannels.includes(channel)) {
       // Deliberately strip event as it includes `sender`
       ipcRenderer.on(channel, (event, ...args) => func(...args))
