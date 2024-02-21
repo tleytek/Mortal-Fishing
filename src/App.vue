@@ -21,6 +21,9 @@ const waterType = ref("");
 const waterDepth = ref("");
 const fishingDepth = ref("");
 
+const hp = ref(0);
+const weight = ref(0);
+
 const fishCatch = ref("");
 
 setInterval(function() {
@@ -54,11 +57,19 @@ window.ipcRenderer.on("cast", (
   time.value = 0;
   timer = setInterval(function() {
     time.value++;
-  })
+  }, 100)
 })
 
 window.ipcRenderer.on("bite", () => {
   clearInterval(timer)
+})
+
+window.ipcRenderer.on("hp", (health) => {
+  hp.value = health;
+})
+
+window.ipcRenderer.on("weight", (_weight) => {
+  weight.value = _weight
 })
 
 window.ipcRenderer.on("catch", (ipcCatch) => {
@@ -145,8 +156,9 @@ function onBaitChange() {
         <div>Caught at: [ {{ catchHour }} : {{ catchMinute }} ]</div>
         <div>Catch: {{ fishCatch }}</div>
       </div>
-      <button @click="debugCatch">Test catch</button>
-      <div>{{ time }}</div>
+      <div>{{ (time / 10).toFixed(1) }}</div>
+      <div>HP: {{ hp }}</div>
+      <div>WEIGHT: {{ weight }}</div>
     </div>
   </div>
 </template>

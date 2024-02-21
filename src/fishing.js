@@ -56,18 +56,18 @@ ipcMain.on("debug-catch", (_event, data) => {
 		INSERT INTO catch (hook, bait, water_depth, fishing_depth, water_type, fish, cast_hour, cast_minute, catch_hour, catch_minute)
 		VALUES (?,?,?,?,?,?,?,?,?,?);
 	`,
-	[
-		data.hook,
-		data.bait,
-		data.waterDepth,
-		data.fishingDepth,
-		data.waterType,
-		data.fishCatch,
-		data.castHour,
-		data.castMinute,
-		data.catchHour,
-		data.catchMinute
-	]);
+		[
+			data.hook,
+			data.bait,
+			data.waterDepth,
+			data.fishingDepth,
+			data.waterType,
+			data.fishCatch,
+			data.castHour,
+			data.castMinute,
+			data.catchHour,
+			data.catchMinute
+		]);
 })
 
 // Length of pull and release packets
@@ -86,9 +86,6 @@ export class Fishing {
 
 		/** @type {BrowserWindow} */ this.mainWindow = mainWindow;
 
-		/** @type {number} */ this.pullIntervalId;
-		/** @type {number} */ this.biteIntervalId;
-
 		// Fishing times
 		/** @type {number} */ this.castHour = 0;
 		/** @type {number} */ this.castMinute = 0;
@@ -100,103 +97,71 @@ export class Fishing {
 		/** @type {string} */ this.bait = "";
 
 		// Fishing environment states
-		/** @type {string} */ this.waterDepth 	= "";
+		/** @type {string} */ this.waterDepth = "";
 		/** @type {string} */ this.currentWater = "";
 		/** @type {string} */ this.fishingDepth = "";
-		
-		// Fishing activity states
-		/** @type {number}  */ this.weight				= 0;
-		/** @type {boolean} */ this.isFishHooked	= false;
-		/** @type {boolean} */ this.fishIsPulling = false;
-		/** @type {number} 	*/ this.biteInterval 	= 0;
-		/** @type {number} 	*/ this.pullInterval 	= 0;
-		/** @type {number} 	*/ this.nibbleCount 	= 0;
-		/** @type {number} 	*/ this.pullCount 		= 0;
-		/** @type {number} 	*/ this.releaseCount 	= 0;
-		/** @type {number} 	*/ this.reelCount 		= 0;
 
-		// -1 Because the first tick after a catch tug
-		/** @type {number} 	*/ this.damageCount = -1;
+		// Fishing activity states
+		/** @type {number}  */ this.weight = 0;
+		/** @type {number}  */ this.pullHealth = 0;
+		/** @type {boolean} */ this.isFishHooked = false;
+		/** @type {boolean} */ this.fishIsPulling = false;
+		/** @type {number} 	*/ this.pullCount = 0;
 	}
 
 	reset() {
-		this.weight					= 0;
-		this.isFishHooked 	= false;
-		this.fishIsPulling 	= false;
-		this.biteInterval 	= 0;
-		this.pullInterval 	= 0;
-		this.nibbleCount 		= 0;
-		this.pullCount 			= 0;
-		this.releaseCount 	= 0;
-		this.reelCount 			= 0;
-		this.waterDepth 		= "";
-		this.fishingDepth 	= "";
-		this.currentWater 	= "";
-		this.damageCount 		= -1;
+		this.weight = 0;
+		this.pullHealth = 0;
+		this.isFishHooked = false;
+		this.fishIsPulling = false;
+		this.pullCount = 0;
+		this.waterDepth = "";
+		this.fishingDepth = "";
+		this.currentWater = "";
+		this.damageCount = -1;
 	}
 
 	/**
-	 * @param {string} bufferString 
+	 * @param {string} bufferHex 
 	 * @returns {ACTION_TYPE}
 	 */
-	fishActionType(bufferString, bufferHex) {
-		let newlines = bufferString.match(/(\n)/gm) || [];
-		let bracketExists = bufferString.slice(0, 1) === "[";
+	fishActionType(bufferHex) {
 		const actionCharStart = bufferHex.slice(0, 2);
 		const actionChar = bufferHex.slice(95, 96);
-		const hpPull = parseInt(bufferHex.slice(44, 46), 16);
+		this.pullHealth = parseInt(bufferHex.slice(44, 46), 16);
 
-		// console.log(bufferHex)
-		// if (!this.fishIsPulling && newlines.length % 2 === 0) {
 		if (actionCharStart === "3f" && (actionChar === "9" || actionChar === "b")) {
-			// console.log("pull \n", bufferString);
-			console.log("pull ", hpPull);
+			this.mainWindow.webContents.send("hp", this.pullHealth);
 			return ACTION_TYPE.PULL;
-		// } else if (this.fishIsPulling && (newlines.length % 2 === 1) || bracketExists) {
 		} else if (actionCharStart === "5b" || actionChar === "a") {
-			// console.log("release \n", bufferString);
-			console.log("release ", hpPull, actionChar);
+			this.mainWindow.webContents.send("hp", this.pullHealth);
 			return ACTION_TYPE.RELEASE;
 		}
 	}
 
 	/**
-	 * @param {string} bufferString 
+	 * @param {string} bufferHex 
 	 * @returns {void}
 	 */
-	async handleForce(bufferString, bufferHex) {
-		switch (this.fishActionType(bufferString, bufferHex)) {
+	async handleForce(bufferHex) {
+		switch (this.fishActionType(bufferHex)) {
 			case ACTION_TYPE.PULL:
 				if ((this.pullCount + 2) * this.weight >= 50) {
 					await mouse.pressButton(Button.RIGHT);
 				}
+
 				this.pullCount++;
-				this.isFishHooked = true;
 				this.fishIsPulling = true;
 				break;
+
 			case ACTION_TYPE.RELEASE:
 				if ((this.pullCount + 2) * this.weight >= 50) {
 					await mouse.releaseButton(Button.RIGHT);
-					console.log("released.ae.ae.ae");
 				}
+
 				this.fishIsPulling = false;
 				break;
 		}
-	}
-
-	/** @returns @type {number} */
-	setPullInterval() {
-		this.pullIntervalId = setInterval(() => {
-			this.pullInterval++;
-			this.mainWindow.webContents.send("pull-interval", this.pullInterval);
-		}, 1);
-	}
-
-	/** @returns @type {number} */
-	setBiteInterval() {
-		this.biteIntervalId = setInterval(() => {
-			this.biteInterval++;
-		}, 1);
 	}
 
 	isBitePacket(bufferHex) {
@@ -210,19 +175,19 @@ export class Fishing {
 	isCastPacket(bufferString) {
 		const waterTypeMatches = bufferString.match(/(?<=Water\=).+?(?=\,)/g);
 		let water = waterTypeMatches &&
-								waterTypeMatches.length &&
-								waterTypeMatches[0].split("_")[1];
+			waterTypeMatches.length &&
+			waterTypeMatches[0].split("_")[1];
 		if (water) {
 			this.reset();
 			const waterDepthMatches = bufferString.match(/(?<=WaterDepth=).+?(?=\,)/g);
 			const fishingDepthMatches = bufferString.match(/(?<=FishingDepth=).+?(?=\,)/g);
 			this.currentWater = water;
 			this.waterDepth = waterDepthMatches &&
-												waterDepthMatches.length &&
-												waterDepthMatches[0].match(/\d/g).join("");
+				waterDepthMatches.length &&
+				waterDepthMatches[0].match(/\d/g).join("");
 			this.fishingDepth = fishingDepthMatches &&
-													fishingDepthMatches.length &&
-													fishingDepthMatches[0].match(/\d/g).join("");
+				fishingDepthMatches.length &&
+				fishingDepthMatches[0].match(/\d/g).join("");
 			this.mainWindow.webContents.send(
 				"cast",
 				this.currentWater,
@@ -231,7 +196,7 @@ export class Fishing {
 			);
 		}
 	}
-	
+
 	storeCatch() {
 		db.run(
 			`
@@ -254,34 +219,31 @@ export class Fishing {
 	}
 
 	start() {
-		this.setBiteInterval();
-		this.setPullInterval();
-
 		c.on('packet', async (_nbytes, _trunc) => {
 			const ethret = decoders.Ethernet(buffer);
-
 			const ipret = decoders.IPV4(buffer, ethret.offset);
 
 			// Clean up the packet
 			let datalen = ipret.info.totallen - ipret.hdrlen;
 			const tcpret = decoders.TCP(buffer, ipret.offset);
 			datalen -= tcpret.hdrlen;
-		
+
 			// String up that packet
 			const bufferString = buffer.toString('binary', tcpret.offset, tcpret.offset + datalen);
 			const bufferHex = buffer.toString('hex', tcpret.offset, tcpret.offset + datalen)
+
 			// Match and organize our possible catches (TODO: fish and catchMatches the same??)
 			const fish = JSON.stringify(bufferString).match(/(?<=fish\.).+?(?=\\)/g);
 			const catchMatches = bufferString.match(/Resources[a-zA-Z]*\b/g);
 			const amuletMatches = bufferString.match(/Misc.Trinkets.Amulet[a-zA-Z]*\b/g);
 			const ringMatches = bufferString.match(/Misc.Trinkets.Ring[a-zA-Z]*\b/g);
-			
+
 			// Catch detection
 			if ((catchMatches && fish) || amuletMatches || ringMatches) {
 				this.mainWindow.webContents.send("catch", fish[0]);
 				await mouse.releaseButton(Button.LEFT);
-				await new Promise(function(res) {
-					setTimeout(function() {
+				await new Promise(function (res) {
+					setTimeout(function () {
 						res();
 					}, 100);
 				})
@@ -294,38 +256,33 @@ export class Fishing {
 			if (ipret.info.totallen === 645) {
 				this.isCastPacket(bufferString, bufferHex);
 			}
-		
+
 			// Pull and release actions -B
 			if (forcePacketLengths.includes(ipret.info.totallen)) {
-				await this.handleForce(bufferString, bufferHex);
+				await this.handleForce(bufferHex);
 			}
-		
+
 			// Bites -B
 			if (
 				ipret.info.totallen === 77 &&
 				this.isFishHooked === false &&
 				this.isBitePacket(bufferHex)
 			) {
+				this.pullHealth = parseInt(bufferHex.slice(44, 46), 16);
 				this.isFishHooked = true;
-				this.biteInterval = 0;
 				await mouse.pressButton(Button.LEFT);
-				console.log(bufferHex);
 				this.mainWindow.webContents.send("bite");
-			}
-		
-			// Nibbles -B
-			if (ipret.info.totallen === 77 && this.isFishHooked === false) {
-				this.nibbleCount++;
-				this.biteInterval = 0;
+				this.mainWindow.webContents.send("hp", this.pullHealth)	
 			}
 
 			if (ipret.info.totallen === 77 && this.isFishHooked === true && ["7", "e"].includes(bufferHex.slice(39, 40))) {
-				console.log("hp", parseInt(bufferHex.slice(44, 46), 16))
+				this.pullHealth = parseInt(bufferHex.slice(44, 46), 16)
+				this.mainWindow.webContents.send("hp", this.pullHealth)	
 			}
 
 			if (ipret.info.totallen === 77 && this.isFishHooked === true && ["8"].includes(bufferHex.slice(39, 40))) {
-				console.log("weight", parseInt(bufferHex.slice(44, 46), 16))
 				this.weight = parseInt(bufferHex.slice(44, 46), 16)
+				this.mainWindow.webContents.send("weight", this.weight);
 			}
 		});
 	}

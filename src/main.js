@@ -1,16 +1,11 @@
 const { app, BrowserWindow, nativeTheme, ipcMain } = require('electron');
 const path = require('path');
-// const Fishing = require("./fishing.js");
 import { Fishing } from "./fishing.js";
-// import { fishing } from "./funcFishing.js";
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (require('electron-squirrel-startup')) {
   app.quit();
 }
-
-/** @type {number} */ let biteIntervalId;
-/** @type {number} */ let pullIntervalId;
 
 const createWindow = () => {
   // Create the browser window.
@@ -42,9 +37,6 @@ const createWindow = () => {
 
   fishing.start();
 
-  biteIntervalId = fishing.biteIntervalId;
-  pullIntervalId = fishing.pullIntervalId;
-
   ipcMain.on("set-hook", (_event, hook) => {
     fishing.hook = hook;
   });
@@ -66,8 +58,6 @@ const createWindow = () => {
 
     fishing.record && fishing.storeCatch();
 
-    console.log("damage count", fishing.damageCount);
-
     fishing.reset();
   })
 };
@@ -83,9 +73,6 @@ app.on('ready', createWindow);
 // for applications and their menu bar to stay active until the user quits
 // explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
-  clearInterval(pullIntervalId);
-  clearInterval(biteIntervalId);
-
   if (process.platform !== 'darwin') {
     app.quit();
   }
