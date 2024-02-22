@@ -21,8 +21,10 @@ const waterType = ref("");
 const waterDepth = ref("");
 const fishingDepth = ref("");
 
-const hp = ref(0);
+const startingFishHp = ref(0);
+const fishHp = ref(0);
 const weight = ref(0);
+const lineHp = ref(0);
 
 const fishCatch = ref("");
 
@@ -60,12 +62,14 @@ window.ipcRenderer.on("cast", (
   }, 100)
 })
 
-window.ipcRenderer.on("bite", () => {
+window.ipcRenderer.on("bite", ({startingFishHealth, fishHealth}) => {
   clearInterval(timer)
+  startingFishHp.value = startingFishHealth;
+  fishHp.value = fishHealth;
 })
 
 window.ipcRenderer.on("hp", (health) => {
-  hp.value = health;
+  fishHp.value = health;
 })
 
 window.ipcRenderer.on("weight", (_weight) => {
@@ -85,6 +89,10 @@ window.ipcRenderer.on("catch", (ipcCatch) => {
   })
 
   time.value = 0;
+})
+
+window.ipcRenderer.on("line-hp", (_lineHp) => {
+  lineHp.value = _lineHp
 })
 
 function onSetWindowClick() {
@@ -157,8 +165,11 @@ function onBaitChange() {
         <div>Catch: {{ fishCatch }}</div>
       </div>
       <div>{{ (time / 10).toFixed(1) }}</div>
-      <div>HP: {{ hp }}</div>
-      <div>WEIGHT: {{ weight }}</div>
+      <div>
+        <div>FISH HP: {{ fishHp }} / {{ startingFishHp }}</div>
+        <div>FISH STRENGTH: {{ weight }}</div>
+        <div>LINE HP: {{ lineHp }}</div>
+      </div>
     </div>
   </div>
 </template>
