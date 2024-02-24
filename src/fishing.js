@@ -1,7 +1,5 @@
 // Electron/Node modules
-const path = require('path');
-const fs = require('fs');
-const { app, BrowserWindow, ipcMain } = require('electron');
+import { getWindow as mainWindow } from './window';
 
 // Nut
 const { mouse, Button, keyboard, Key } = require('@nut-tree/nut-js');
@@ -23,53 +21,6 @@ c.open(
 );
 c.setMinBytes && c.setMinBytes(0);
 
-// TODO: Maybe get this string from something constant?
-const appName = 'Mortal Online 2 Fishing';
-
-if (!fs.existsSync(path.join(app.getPath('appData'), appName))) {
-	fs.mkdirSync(path.join(app.getPath('appData'), appName))
-}
-
-// DB init
-const sqlite3 = require('sqlite3').verbose();
-const dbPath = path.join(app.getPath('appData'), appName, 'fishing.db');
-const db = new sqlite3.Database(dbPath);
-
-db.run(`
-CREATE TABLE IF NOT EXISTS catch (
-	hook 					INT(4),
-	bait 					VARCHAR(25),
-	water_depth		VARCHAR(25),
-	fishing_depth	VARCHAR(25),
-	water_type		VARCHAR(25),
-	fish 					VARCHAR(25),
-	cast_hour			INT(2),
-	cast_minute		INT(2),
-	catch_hour 		INT(2),
-	catch_minute 	INT(2),
-	created_at 		DATETIME DEFAULT CURRENT_TIMESTAMP
-)
-`)
-
-ipcMain.on("debug-catch", (_event, data) => {
-	db.run(`
-		INSERT INTO catch (hook, bait, water_depth, fishing_depth, water_type, fish, cast_hour, cast_minute, catch_hour, catch_minute)
-		VALUES (?,?,?,?,?,?,?,?,?,?);
-	`,
-		[
-			data.hook,
-			data.bait,
-			data.waterDepth,
-			data.fishingDepth,
-			data.waterType,
-			data.fishCatch,
-			data.castHour,
-			data.castMinute,
-			data.catchHour,
-			data.catchMinute
-		]);
-})
-
 // Length of pull and release packets
 /** @type {number[]} */ const forcePacketLengths = [105, 133];
 
@@ -81,65 +32,72 @@ const ACTION_TYPE = {
 
 export class Fishing {
 
-	/** @param {BrowserWindow} mainWindow */
-	constructor(mainWindow) {
-
-		/** @type {BrowserWindow} */ this.mainWindow = mainWindow;
-
+	constructor() {
 		// Fishing times
 		/** @type {number} */ this.castHour = 0;
 		/** @type {number} */ this.castMinute = 0;
 		/** @type {number} */ this.catchHour = 0;
 		/** @type {number} */ this.catchMinute = 0;
+		/** @type {number} */ this.baitTime = 0;
+		/** @type {number} */ this.reelTime = 0;
+
+		/** @type {typeof setInterval} */ this.inGameMinuteInterval;
+		/** @type {typeof setInterval} */ this.baitTimeInterval;
+		/** @type {typeof setInterval} */ this.reelTimeInterval;
 
 		// Fisherman states
 		/** @type {string} */ this.hook = "";
 		/** @type {string} */ this.bait = "";
 
 		// Fishing environment states
-		/** @type {string} */ this.waterDepth = "";
+		/** @type {number} */ this.waterDepth = 0;
 		/** @type {string} */ this.currentWater = "";
-		/** @type {string} */ this.fishingDepth = "";
+		/** @type {string} */ this.uuid = "";
+		/** @type {number} */ this.fishingDepth = 0;
 
 		// Fishing activity states
-		/** @type {number}  */ this.weight = 0;
+		/** @type {number}  */ this.fishStrength = 0;
 		/** @type {number}  */ this.lineHp = 70;
 		/** @type {number}  */ this.fishHealth = 0;
 		/** @type {number}  */ this.startingFishHealth = 0;
 		/** @type {boolean} */ this.isFishHooked = false;
 		/** @type {boolean} */ this.fishIsPulling = false;
 		/** @type {boolean} */ this.holdingRightClick = false;
+		/** @type {number} 	*/ this.damageCount = 0;
 		/** @type {number} 	*/ this.pullCount = 0;
 		/** @type {number} 	*/ this.consecutivePullCount = 0;
 		/** @type {number} 	*/ this.maxConsecutivePullCount = 0;
 	}
 
 	reset() {
-		this.weight = 0;
+		this.fishStrength = 0;
 		this.lineHp = 70;
 		this.startingFishHealth = 0;
 		this.fishHealth = 0;
 		this.isFishHooked = false;
 		this.fishIsPulling = false;
+		this.damageCount = 0;
 		this.pullCount = 0;
 		this.consecutivePullCount = 0;
 		this.maxConsecutivePullCount = 0;
-		this.waterDepth = "";
-		this.fishingDepth = "";
+		this.waterDepth = 0;
+		this.fishingDepth = 0;
 		this.currentWater = "";
-		this.damageCount = -1;
+		this.uuid = "";
 		this.holdingRightClick = false;
+		this.baitTime = 0;
+		this.reelTime = 0;
+		clearInterval(this.baitTimeInterval);
+		clearInterval(this.reelTimeInterval);
 	}
 	
 	async resetCast() {
-		keyboard.config.autoDelayMs = 1000;
-		await keyboard.type("1");
-		await keyboard.type("1");
-
-		keyboard.config.autoDelayMs = 4000;
+		await keyboard.type(Key.Num1);
+		await new Promise((res) => setTimeout(() => res(), 2000))
+		await keyboard.type(Key.Num1);
+		await new Promise((res) => setTimeout(() => res(), 500))
 		await keyboard.type("x");
-
-		keyboard.config.autoDelayMs = 200;
+		await new Promise((res) => setTimeout(() => res(), 500))
 		await keyboard.type("z");
 		await keyboard.type("2");
 		await keyboard.type("3");
@@ -163,11 +121,11 @@ export class Fishing {
 
 		if (actionCharStart === "3f" && (actionChar === "9" || actionChar === "b")) {
 			console.log("pull");
-			this.mainWindow.webContents.send("hp", this.fishHealth);
+			mainWindow().webContents.send("hp", this.fishHealth);
 			return ACTION_TYPE.PULL;
 		} else if (actionCharStart === "5b" || actionChar === "a") {
 			console.log("release")
-			this.mainWindow.webContents.send("hp", this.fishHealth);
+			mainWindow().webContents.send("hp", this.fishHealth);
 			return ACTION_TYPE.RELEASE;
 		}
 	}
@@ -179,15 +137,18 @@ export class Fishing {
 	async handleForce(bufferHex) {
 		switch (this.fishActionType(bufferHex)) {
 			case ACTION_TYPE.PULL:
-				this.pullCount++;
 				this.consecutivePullCount++;
-				// if ((this.pullCount + 1) * this.weight >= 70) {
-				if (this.weight * 2 > this.lineHp) {
+
+				if (this.maxConsecutivePullCount < this.consecutivePullCount) {
+					this.maxConsecutivePullCount = this.consecutivePullCount;
+				}
+	
+				if (this.fishStrength * 2 > this.lineHp) {
 					this.holdingRightClick = true;
 					await mouse.pressButton(Button.RIGHT);
 				} else {
-					this.lineHp -= this.weight;
-					this.mainWindow.webContents.send("line-hp", this.lineHp);
+					this.lineHp -= this.fishStrength;
+					mainWindow().webContents.send("line-hp", this.lineHp);
 				}
 
 				this.pullCount++;
@@ -199,8 +160,7 @@ export class Fishing {
 					this.maxConsecutivePullCount = this.consecutivePullCount;
 				}
 
-				// if ((this.pullCount + 1) * this.weight >= 70 && this.holdingRightClick === true) {
-				if (this.weight * 2 > this.lineHp && this.holdingRightClick === true) {
+				if (this.fishStrength * 2 > this.lineHp && this.holdingRightClick === true) {
 					this.holdingRightClick = false
 					await mouse.releaseButton(Button.RIGHT);
 				}
@@ -214,14 +174,6 @@ export class Fishing {
 		}
 	}
 
-	isBitePacket(bufferHex) {
-		if (bufferHex.slice(39, 40) === "7") {
-			return true;
-		} else {
-			return false;
-		}
-	}
-
 	isCastPacket(bufferString) {
 		const waterTypeMatches = bufferString.match(/(?<=Water\=).+?(?=\,)/g);
 		let water = waterTypeMatches &&
@@ -229,44 +181,71 @@ export class Fishing {
 			waterTypeMatches[0].split("_")[1];
 		if (water) {
 			this.reset();
+
+			this.baitTimeInterval = setInterval(() => this.baitTime++, 1000);
+			
 			const waterDepthMatches = bufferString.match(/(?<=WaterDepth=).+?(?=\,)/g);
 			const fishingDepthMatches = bufferString.match(/(?<=FishingDepth=).+?(?=\,)/g);
+			const throwDistance = bufferString.match(/(?<=ThrowDistance=).+?(?=\,)/g)
+			const uuid = bufferString.match(/(?<=K=).+?(?=\,)/g)
+			const serverTime = bufferString.match(/(?<=Time=).+?(?=\.)/g)
 			this.currentWater = water;
-			this.waterDepth = waterDepthMatches &&
-				waterDepthMatches.length &&
-				waterDepthMatches[0].match(/\d/g).join("");
-			this.fishingDepth = fishingDepthMatches &&
-				fishingDepthMatches.length &&
-				fishingDepthMatches[0].match(/\d/g).join("");
-			this.mainWindow.webContents.send(
+			this.waterDepth = +waterDepthMatches[0].match(/\d/g).join("");
+			this.fishingDepth = +fishingDepthMatches[0].match(/\d/g).join("");
+			this.throwDistance = +throwDistance[0].match(/\d/g).join("");
+			this.uuid = uuid[0];
+
+			// Time stuff
+			this.serverTime = +serverTime[0].match(/\d/g).join("");
+			let totalIngameMinutes = serverTime / 6.41025416666667 - 250;
+			let minutesMod = totalIngameMinutes % 1440;
+			this.castHour = Math.floor(minutesMod / 60);
+			this.castMinute = Math.floor(minutesMod % 60);
+			this.catchHour = this.castHour;
+			this.catchMinute = this.castMinute;
+
+			clearInterval(this.inGameMinuteInterval)
+			this.inGameMinuteInterval = setInterval(function() {
+				this.castMinute++;
+				if (this.castMinute === 60) {
+					this.castHour++;
+					this.castMinute = 0;
+				}
+				if (this.castHour === 24) {
+					this.castHour = 0;
+				}
+			}, 6410.254166666666667)
+
+			mainWindow().webContents.send(
 				"cast",
 				this.currentWater,
 				this.waterDepth,
-				this.fishingDepth
+				this.fishingDepth,
+				this.castHour,
+				this.castMinute,
+				this.throwDistance,
+				this.uuid,
 			);
-			this.mainWindow.webContents.send("line-hp", this.lineHp);
+			mainWindow().webContents.send("line-hp", this.lineHp);
 		}
 	}
 
-	storeCatch() {
-		db.run(
-			`
-				INSERT INTO catch (hook, bait, water_depth, fishing_depth, water_type, fish, cast_hour, cast_minute, catch_hour, catch_minute)
-				VALUES (?,?,?,?,?,?,?,?,?,?);
-			`,
-			[
-				this.hook,
-				this.bait,
-				this.waterDepth,
-				this.fishingDepth,
-				this.waterType,
-				this.fishCatch,
-				this.castHour,
-				this.castMinute,
-				this.catchHour,
-				this.catchMinute
-			]
-		);
+	async catch(fish) {
+		clearInterval(this.inGameMinuteInterval);
+		clearInterval(this.reelTimeInterval);
+		mainWindow().webContents.send("catch", fish[0]);
+		
+		storeCatch()
+		await mouse.releaseButton(Button.LEFT);
+		await new Promise(function (res) {
+			setTimeout(function () {
+				res();
+			}, 100);
+		})
+		mouse.config.autoDelayMs = 30;
+		await mouse.pressButton(Button.LEFT);
+		await mouse.releaseButton(Button.LEFT);
+		console.log("\n")
 	}
 
 	start() {
@@ -291,17 +270,7 @@ export class Fishing {
 
 			// Catch detection
 			if ((catchMatches && fish) || amuletMatches || ringMatches) {
-				this.mainWindow.webContents.send("catch", fish[0]);
-				await mouse.releaseButton(Button.LEFT);
-				await new Promise(function (res) {
-					setTimeout(function () {
-						res();
-					}, 100);
-				})
-				mouse.config.autoDelayMs = 30;
-				await mouse.pressButton(Button.LEFT);
-				await mouse.releaseButton(Button.LEFT);
-				console.log("\n")
+				await this.catch(fish);
 			}
 
 			// Cast detection
@@ -311,14 +280,18 @@ export class Fishing {
 
 			if (
 				forcePacketLengths.includes(ipret.info.totallen) && 
-				(this.fishHealth > this.startingFishHealth / 2) &&
-				this.weight * 2 > this.lineHp	
+				(
+					this.maxConsecutivePullCount >= 4 ||
+					(
+						(this.fishHealth > this.startingFishHealth / 2) &&
+						this.fishStrength * 2 > this.lineHp
+					)
+				)
 			) {
-				console.log("should reset");
 				await this.resetCast();
 			}
 			// Pull and release actions -B
-			if (forcePacketLengths.includes(ipret.info.totallen)) {
+			else if (forcePacketLengths.includes(ipret.info.totallen)) {
 				await this.handleForce(bufferHex);
 			}
 
@@ -326,24 +299,36 @@ export class Fishing {
 			if (
 				ipret.info.totallen === 77 &&
 				this.isFishHooked === false &&
-				this.isBitePacket(bufferHex)
+				bufferHex.slice(39, 40) === "7"
 			) {
+				clearInterval(this.baitTimeInterval)
+				this.reelTimeInterval = setInterval(() => this.reelTime++, 1000);
 				this.startingFishHealth = parseInt(bufferHex.slice(44, 46), 16);
 				this.fishHealth = this.startingFishHealth;
 				this.isFishHooked = true;
 				await mouse.pressButton(Button.LEFT);
-				this.mainWindow.webContents.send("bite", { startingFishHealth: this.startingFishHealth, fishHealth: this.fishHealth });	
+				mainWindow().webContents.send("bite", { startingFishHealth: this.startingFishHealth, fishHealth: this.fishHealth });	
 			}
 
-			if (ipret.info.totallen === 77 && this.isFishHooked === true && ["7", "e"].includes(bufferHex.slice(39, 40))) {
+			if (
+				ipret.info.totallen === 77 &&
+				this.isFishHooked === true &&
+				["7", "e"].includes(bufferHex.slice(39, 40))
+			) {
 				console.log("dmg")
 				this.fishHealth = parseInt(bufferHex.slice(44, 46), 16)
-				this.mainWindow.webContents.send("hp", this.fishHealth)	
+				mainWindow().webContents.send("hp", this.fishHealth)	
+				this.damageCount++
 			}
 
-			if (ipret.info.totallen === 77 && this.isFishHooked === true && ["8"].includes(bufferHex.slice(39, 40))) {
-				this.weight = parseInt(bufferHex.slice(44, 46), 16)
-				this.mainWindow.webContents.send("weight", this.weight);
+			// Identify packet that has our fishes pulling strength
+			if (
+				ipret.info.totallen === 77 &&
+				this.isFishHooked === true &&
+				["8"].includes(bufferHex.slice(39, 40))
+			) {
+				this.fishStrength = parseInt(bufferHex.slice(44, 46), 16)
+				mainWindow().webContents.send("fish-strength", this.fishStrength);
 			}
 		});
 	}

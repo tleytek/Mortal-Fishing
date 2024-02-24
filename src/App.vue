@@ -1,8 +1,11 @@
 <script setup>
 import { ref } from "vue";
 
-let timer = null;
-const time = ref(0);
+let baitTimer = null;
+const baitTime = ref(0);
+
+let reelTimer = null;
+const reelTime = ref(0);
 
 const alwaysOnTop = ref(false);
 const recordCatches = ref(false);
@@ -20,10 +23,12 @@ const bait = ref("");
 const waterType = ref("");
 const waterDepth = ref("");
 const fishingDepth = ref("");
+const throwingDistance = ref("");
+const uuid = ref("");
 
 const startingFishHp = ref(0);
 const fishHp = ref(0);
-const weight = ref(0);
+const fishStrength = ref(0);
 const lineHp = ref(0);
 
 const fishCatch = ref("");
@@ -42,38 +47,47 @@ setInterval(function() {
 window.ipcRenderer.on("cast", (
   ipcWaterType,
   ipcWaterDepth,
-  ipcFishingDepth
+  ipcFishingDepth,
+  ipcCastHour,
+  ipcCastMinute,
+  ipcThrowingDistance,
+  ipcUUID,
 ) => {
+  hour.value = ipcCastHour;
+  minute.value = ipcCastMinute;
   castHour.value = hour.value;
   castMinute.value = minute.value;
 
   waterType.value = ipcWaterType;
   waterDepth.value = ipcWaterDepth;
   fishingDepth.value = ipcFishingDepth;
+  throwingDistance.value = ipcThrowingDistance;
+  uuid.value = ipcUUID;
 
-  catchHour.value = 0;
-  catchMinute.value = 0;
-  fishCatch.value = "";
-
-  clearInterval(timer)
-  time.value = 0;
-  timer = setInterval(function() {
-    time.value++;
+  clearInterval(baitTimer)
+  clearInterval(reelTimer)
+  baitTime.value = 0;
+  baitTimer = setInterval(function() {
+    baitTime.value++;
   }, 100)
 })
 
 window.ipcRenderer.on("bite", ({startingFishHealth, fishHealth}) => {
-  clearInterval(timer)
+  clearInterval(baitTimer)
   startingFishHp.value = startingFishHealth;
   fishHp.value = fishHealth;
+  reelTime.value = 0;
+  reelTimer = setInterval(function() {
+    reelTime.value++;
+  }, 100)
 })
 
 window.ipcRenderer.on("hp", (health) => {
   fishHp.value = health;
 })
 
-window.ipcRenderer.on("weight", (_weight) => {
-  weight.value = _weight
+window.ipcRenderer.on("fish-strength", (ipcFishStrength) => {
+  fishStrength.value = ipcFishStrength
 })
 
 window.ipcRenderer.on("catch", (ipcCatch) => {
@@ -87,8 +101,7 @@ window.ipcRenderer.on("catch", (ipcCatch) => {
     catchHour: catchHour.value,
     catchMinute: catchMinute.value
   })
-
-  time.value = 0;
+  clearInterval(reelTimer)
 })
 
 window.ipcRenderer.on("line-hp", (_lineHp) => {
@@ -103,21 +116,6 @@ function onSetWindowClick() {
 function onRecordCatchesClick() {
   recordCatches.value = !recordCatches.value;
   window.ipcRenderer.send("set-record", recordCatches.value);
-}
-
-function debugCatch() {
-  window.ipcRenderer.send(
-    "debug-catch",
-    {
-      hook: hook.value,
-      bait: bait.value,
-      waterDepth: waterDepth.value,
-      fishingDepth: fishingDepth.value,
-      waterType: waterType.value,
-      catch: fishCatch.value,
-
-    }
-  )
 }
 
 function onHookChange() {
@@ -159,15 +157,20 @@ function onBaitChange() {
           <div>Water: {{ waterType }}</div>
           <div>Water depth: {{ waterDepth }}</div>
           <div>Fishing depth: {{ fishingDepth }}</div>
+          <div>Throwing distance: {{ throwingDistance }}</div>
+          <div class="col-span-2">UUID: {{ uuid }}</div>
       </div>
       <div class="grid grid-cols-2 pt-2">
         <div>Caught at: [ {{ catchHour }} : {{ catchMinute }} ]</div>
         <div>Catch: {{ fishCatch }}</div>
       </div>
-      <div>{{ (time / 10).toFixed(1) }}</div>
+      <div>
+        <div>bait time: {{ (baitTime / 10).toFixed(1) }}</div>
+        <div>reel time: {{ (reelTime / 10).toFixed(1) }}</div>
+      </div>
       <div>
         <div>FISH HP: {{ fishHp }} / {{ startingFishHp }}</div>
-        <div>FISH STRENGTH: {{ weight }}</div>
+        <div>FISH STRENGTH: {{ fishStrength }}</div>
         <div>LINE HP: {{ lineHp }}</div>
       </div>
     </div>

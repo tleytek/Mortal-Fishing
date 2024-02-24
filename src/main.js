@@ -1,66 +1,12 @@
 const { app, BrowserWindow, nativeTheme, ipcMain } = require('electron');
 const path = require('path');
 import { Fishing } from "./fishing.js";
-
+import { createWindow } from "./window.js";
+// const appWindow = require(path.join(__dirname, "./window.js"))
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (require('electron-squirrel-startup')) {
   app.quit();
 }
-
-const createWindow = () => {
-  // Create the browser window.
-  const mainWindow = new BrowserWindow({
-    width: 550,
-    height: 600,
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
-    },
-    autoHideMenuBar: true,
-    alwaysOnTop: false,
-  });
-
-  // and load the index.html of the app.
-  if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
-    mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
-  } else {
-    mainWindow.loadFile(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
-  }
-  
-  // Open the DevTools.
-  // mainWindow.webContents.openDevTools();
-
-  ipcMain.on("set-window", (_event, alwaysOnTopState) => {
-    mainWindow.setAlwaysOnTop(alwaysOnTopState, 'screen');
-  })
-
-  const fishing = new Fishing(mainWindow);
-
-  fishing.start();
-
-  ipcMain.on("set-hook", (_event, hook) => {
-    fishing.hook = hook;
-  });
-
-  ipcMain.on("set-bait", (_event, bait) => {
-    fishing.bait = bait;
-  });
-
-  ipcMain.on("set-record", (_event, record) => {
-    fishing.record = record;
-  })
-
-  // After we send the caught fish, the FE gives us the time, and then we store all the data
-  ipcMain.on("catch-time", (_event, times) => {
-    fishing.castHour = times.castHour;
-    fishing.castMinute = times.castMinute;
-    fishing.catchHour = times.catchHour;
-    fishing.catchMinute = times.catchMinute;
-
-    fishing.record && fishing.storeCatch();
-
-    fishing.reset();
-  })
-};
 
 nativeTheme.themeSource = 'dark';
 
@@ -88,3 +34,31 @@ app.on('activate', () => {
 
 // In this file you can include the rest of your app's specific main process
 // code. You can also put them in separate files and import them here
+
+const fishing = new Fishing();
+
+fishing.start();
+
+ipcMain.on("set-hook", (_event, hook) => {
+  fishing.hook = hook;
+});
+
+ipcMain.on("set-bait", (_event, bait) => {
+  fishing.bait = bait;
+});
+
+ipcMain.on("set-record", (_event, record) => {
+  fishing.record = record;
+})
+
+// After we send the caught fish, the FE gives us the time, and then we store all the data
+ipcMain.on("catch-time", (_event, times) => {
+  fishing.castHour = times.castHour;
+  fishing.castMinute = times.castMinute;
+  fishing.catchHour = times.catchHour;
+  fishing.catchMinute = times.catchMinute;
+
+  fishing.record && fishing.storeCatch();
+
+  fishing.reset();
+})
