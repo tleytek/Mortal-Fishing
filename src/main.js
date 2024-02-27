@@ -1,8 +1,7 @@
-const { app, BrowserWindow, nativeTheme, ipcMain } = require('electron');
-const path = require('path');
-import { Fishing } from "./fishing.js";
+const { app, BrowserWindow, nativeTheme } = require('electron');
 import { createWindow } from "./window.js";
-// const appWindow = require(path.join(__dirname, "./window.js"))
+import { start } from "./cap.js"
+
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (require('electron-squirrel-startup')) {
   app.quit();
@@ -35,30 +34,5 @@ app.on('activate', () => {
 // In this file you can include the rest of your app's specific main process
 // code. You can also put them in separate files and import them here
 
-const fishing = new Fishing();
+start();
 
-fishing.start();
-
-ipcMain.on("set-hook", (_event, hook) => {
-  fishing.hook = hook;
-});
-
-ipcMain.on("set-bait", (_event, bait) => {
-  fishing.bait = bait;
-});
-
-ipcMain.on("set-record", (_event, record) => {
-  fishing.record = record;
-})
-
-// After we send the caught fish, the FE gives us the time, and then we store all the data
-ipcMain.on("catch-time", (_event, times) => {
-  fishing.castHour = times.castHour;
-  fishing.castMinute = times.castMinute;
-  fishing.catchHour = times.catchHour;
-  fishing.catchMinute = times.catchMinute;
-
-  fishing.record && fishing.storeCatch();
-
-  fishing.reset();
-})

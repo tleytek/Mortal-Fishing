@@ -25,6 +25,7 @@ const waterDepth = ref("");
 const fishingDepth = ref("");
 const throwingDistance = ref("");
 const uuid = ref("");
+const chance = ref(0);
 
 const startingFishHp = ref(0);
 const fishHp = ref(0);
@@ -43,6 +44,10 @@ setInterval(function() {
 		hour.value = 0;
 	}
 }, 6410.2541666667);
+
+window.ipcRenderer.on("chance", (ipcChance) => {
+  chance.value = ipcChance;
+})
 
 window.ipcRenderer.on("cast", (
   ipcWaterType,
@@ -172,6 +177,7 @@ function onBaitChange() {
         <div>FISH HP: {{ fishHp }} / {{ startingFishHp }}</div>
         <div>FISH STRENGTH: {{ fishStrength }}</div>
         <div>LINE HP: {{ lineHp }}</div>
+        <div>CHANCE: {{ chance }}</div>
       </div>
     </div>
   </div>

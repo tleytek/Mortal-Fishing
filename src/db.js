@@ -1,3 +1,6 @@
+const path = require("path");
+const fs = require("fs");
+const { app } = require("electron");
 // TODO: Maybe get data.string from something constant?
 const appName = 'Mortal Online 2 Fishing';
 
@@ -12,22 +15,26 @@ const db = new sqlite3.Database(dbPath);
 
 db.run(`
 CREATE TABLE IF NOT EXISTS catch (
+	uuid												VARCHAR(32),
 	hook												INT(1),
 	bait												VARCHAR(25),
 	water_depth									INT(2),
 	fishing_depth								INT(2),
 	water_type									VARCHAR(25),
-	fish 												VARCHAR(25),
-	cast_hour										INT(1),
-	cast_minute									INT(1),
-	catch_hour 									INT(1),
-	catch_minute 								INT(1),
+	cast_time										TIME,
+	bait_time										INT(2),
+	starting_fish_health				INT(1),
 	fish_strength 							INT(1),
-	uuid												VARCHAR(32),
 	damage_count								INT(1),
+	max_consecutive_damage_count INT(1),
 	pull_count									INT(1),
 	max_consecutive_pull_count	INT(1),
-	starting_fish_health				INT(1),
+	consecutive_reset_cast_count INT(1),
+	reel_time										INT(2),
+	catch_time									TIME,
+	server_catch_time									INT(4),
+	fish 												VARCHAR(25),
+	chance		INT(1),
 	created_at 									DATETIME DEFAULT CURRENT_TIMESTAMP
 )
 `)
@@ -36,42 +43,50 @@ export function storeCatch(data) {
 	db.run(
 		`
 			INSERT INTO catch (
+				uuid,
 				hook,
 				bait,
 				water_depth,
 				fishing_depth,
 				water_type,
-				fish,
-				cast_hour,
-				cast_minute,
-				catch_hour,
-				catch_minute,
+				cast_time,
+				bait_time,
+				starting_fish_health,
 				fish_strength,
-				uuid,
 				damage_count,
+				max_consecutive_damage_count,
 				pull_count,
 				max_consecutive_pull_count,
-				starting_fish_health
+				consecutive_reset_cast_count,
+				reel_time,
+				catch_time,
+				server_catch_time,
+				fish,
+				chance
 			)
-			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);
+			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);
 		`,
 		[
+			data.uuid,
 			data.hook,
 			data.bait,
 			data.waterDepth,
 			data.fishingDepth,
 			data.waterType,
-			data.fishCatch,
-			data.castHour,
-			data.castMinute,
-			data.catchHour,
-			data.catchMinute,
-			data.fishPullStrength,
-			data.uuid,
+			data.castTime,
+			data.baitTime,
+			data.startingFishHealth,
+			data.fishStrength,
 			data.damageCount,
+			data.maxConsecutiveDamageCount,
 			data.pullCount,
 			data.maxConsecutivePullCount,
-			data.startingFishHealth
+			data.consecutiveResetCastCount,
+			data.reelTime,
+			data.catchTime,
+			data.serverTime,
+			data.fish,
+			data.chance
 		]
 	);
 };
