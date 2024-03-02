@@ -5,7 +5,7 @@ import * as db from "./db.js";
 
 // Nut
 const { mouse, Button, keyboard, Key } = require('@nut-tree/nut-js');
-
+mouse.config.autoDelayMs = 1;
 /** @type {number[]} */ const forcePacketLengths = [105, 133];
 
 // Action type enums
@@ -45,6 +45,7 @@ export class Fishing {
 		/** @type {number} */ this.chance = 0;
 
 		// Fishing activity states
+		/** @type {boolean} */ this.isFishing = false;
 		/** @type {number}  */ this.fishStrength = 0;
 		/** @type {number}  */ this.lineHp = 70;
 		/** @type {number}  */ this.fishHealth = 0;
@@ -107,6 +108,7 @@ export class Fishing {
 		await mouse.releaseButton(Button.LEFT);
 		await new Promise((res) => setTimeout(() => res(), 100))
 		await mouse.pressButton(Button.LEFT);
+		// await new Promise((res) => setTimeout(() => res(), 50))
 		await mouse.releaseButton(Button.LEFT);
 		console.log("\n")
 	}
@@ -121,12 +123,12 @@ export class Fishing {
 		this.fishHealth = parseInt(bufferHex.slice(44, 46), 16);
 
 		if (actionCharStart === "3f" && (actionChar === "9" || actionChar === "b")) {
-			// console.log("pull");
-			mainWindow().webContents.send("hp", this.fishHealth);
+			console.log("pull");
+			mainWindow().webContents.send("hp", this.fishHealth, this.pullCount);
 			return ACTION_TYPE.PULL;
 		} else if (this.fishIsPulling === true && (actionCharStart === "5b" || actionChar === "a")) {
-			// console.log("release")
-			mainWindow().webContents.send("hp", this.fishHealth);
+			console.log("release")
+			mainWindow().webContents.send("hp", this.fishHealth, this.pullCount);
 			return ACTION_TYPE.RELEASE;
 		}
 	}
@@ -139,15 +141,12 @@ export class Fishing {
 		switch (this.fishActionType(bufferHex)) {
 			case ACTION_TYPE.PULL:
 				this.consecutivePullCount++;
-
 				if (this.maxConsecutivePullCount < this.consecutivePullCount) {
 					this.maxConsecutivePullCount = this.consecutivePullCount;
 				}
-
-				// if (this.maxConsecutiveDamageCount < this.consecutiveDamageCount) {
-				// 	this.maxConsecutiveDamageCount = this.consecutiveDamageCount;
-				// }
-	
+				if (this.maxConsecutiveDamageCount < this.consecutiveDamageCount) {
+					this.maxConsecutiveDamageCount = this.consecutiveDamageCount;
+				}
 				if (this.fishStrength * 2 > this.lineHp) {
 					this.holdingRightClick = true;
 					await mouse.pressButton(Button.RIGHT);
@@ -155,55 +154,55 @@ export class Fishing {
 					this.lineHp -= this.fishStrength;
 					mainWindow().webContents.send("line-hp", this.lineHp);
 				}
-
 				this.pullCount++;
 				this.consecutiveDamageCount = 0;
 				this.fishIsPulling = true;
 				break;
-
 			case ACTION_TYPE.RELEASE:
-				// if (this.maxConsecutivePullCount < this.consecutivePullCount) {
-				// 	this.maxConsecutivePullCount = this.consecutivePullCount;
-				// }
-				// if (this.maxConsecutiveDamageCount < this.consecutiveDamageCount) {
-				// 	this.maxConsecutiveDamageCount = this.consecutiveDamageCount;
-				// }
-
-				if (this.fishStrength * 2 > this.lineHp && this.holdingRightClick === true) {
+				if (
+					// this.fishStrength * 2 > this.lineHp && 
+					this.holdingRightClick === true) {
 					this.holdingRightClick = false
 					await mouse.releaseButton(Button.RIGHT);
 				}
-
+				mainWindow().webContents.send("line-hp", this.lineHp);
 				this.releaseCount++;
 				this.consecutivePullCount = 0;
 				this.consecutiveDamageCount = 0;
 				this.fishIsPulling = false;
 				break;
-			
-			case ACTION_TYPE.FISH_RELEASE:
-				this.fishIsPulling = false;
 		}
 	}
 
 	async resetCastTest() {
-		await new Promise((res) => setTimeout(() => res(), 1000));
+		// await new Promise((res) => setTimeout(() => res(), 1000));
 		await mouse.pressButton(Button.LEFT);
-		await new Promise((res) => setTimeout(() => res(), 2500));
+		await new Promise((res) => setTimeout(() => res(), 2700));
 		await mouse.releaseButton(Button.LEFT);
 		await this.resetCast(false)
 
 	}
-	async isCastPacket(bufferString, bufferHex) {
+
+	async cast(bufferString, bufferHex) {
 		const isWater = new RegExp("(?<=Water\=).+?(?=\,)", "g").test(bufferString);
 		
 		if (isWater) {
+			this.isFishing = true;
+			mainWindow().webContents.send("fishing-state", this.isFishing);
 			this.reset();
 			this.chance = parseInt(bufferHex.slice(530, 532), 16);
 			mainWindow().webContents.send("chance", this.chance)
-			console.log(this.chance);
+			// console.log(this.chance);
 
 			// Lots of data from the cast packet
-			this.baitTimeInterval = setInterval(() => this.baitTime++, 1000);
+			this.baitTimeInterval = setInterval(() => {
+				this.baitTime++
+				// console.log(this.baitTime)
+				// if (this.baitTime > 15) {
+				// 	clearInterval(this.baitTimeInterval)
+				// 	this.resetCastTest();
+				// }
+			}, 1000);
 			this.water = bufferString.match(/(?<=Water\=).+?(?=\,)/g)[0].split("_")[1];
 			this.waterDepth = +bufferString.match(/(?<=WaterDepth=).+?(?=\,)/g)[0];
 			this.fishingDepth = +bufferString.match(/(?<=FishingDepth=).+?(?=\,)/g)[0];
@@ -212,7 +211,7 @@ export class Fishing {
 			this.serverTime = +bufferString.match(/(?<=Time=).+?(?=\.)/g)[0];
 
 			// Time stuff
-			const totalIngameMinutes = this.serverTime / 6.41025416666667 - 250;
+			const totalIngameMinutes = this.serverTime / 6.41025416666667 + 498;
 			const minutesMod = totalIngameMinutes % 1440;
 			this.castHour = Math.floor(minutesMod / 60);
 			this.castMinute = Math.floor(minutesMod % 60);
@@ -242,11 +241,6 @@ export class Fishing {
 				this.chance,
 			);
 			mainWindow().webContents.send("line-hp", this.lineHp);
-
-			// if (this.chance < 200) {
-			// 	await this.resetCastTest();
-			// 	return;
-			// }
 		}
 
 		if (isWater && this.fishingDepth > this.waterDepth) {
@@ -256,6 +250,8 @@ export class Fishing {
 
 	async catch(fish) {
 		console.log(fish[0])
+		this.isFishing = false;
+		mainWindow().webContents.send("fishing-state", this.isFishing);
 		clearInterval(this.inGameMinuteInterval);
 		clearInterval(this.reelTimeInterval);
 		if (this.record) {
@@ -289,6 +285,16 @@ export class Fishing {
 	}
 
 	async handlePacket(bufferString, bufferHex, packetLength, dataLen) {
+		// Identify packet that has our fishes pulling strength
+		if (
+			packetLength === 77 &&
+			this.isFishHooked === true &&
+			["8"].includes(bufferHex.slice(39, 40))
+		) {
+			this.fishStrength = parseInt(bufferHex.slice(44, 46), 16)
+			mainWindow().webContents.send("fish-strength", this.fishStrength);
+		}
+
 		// Match and organize our possible catches (TODO: fish and catchMatches the same??)
 		const fish = JSON.stringify(bufferString).match(/(?<=fish\.).+?(?=\\)/g);
 		const catchMatches = bufferString.match(/Resources[a-zA-Z]*\b/g);
@@ -296,27 +302,33 @@ export class Fishing {
 		const ringMatches = bufferString.match(/Misc.Trinkets.Ring[a-zA-Z]*\b/g);
 
 		// Catch detection
-		if ((catchMatches && fish) || amuletMatches || ringMatches) {
+		if (this.isFishing === true && ((catchMatches && fish) || amuletMatches || ringMatches)) {
 			await this.catch(fish);
 		}
 
 		// Cast detection
-		if (packetLength === 645) {
-			await this.isCastPacket(bufferString, bufferHex);
+		if (packetLength === 645 && bufferHex.slice(38, 40) === "2f") {
+			await this.cast(bufferString, bufferHex);
+		}
+		if (packetLength === 645 && bufferHex.slice(38, 40) === "2c") {
+			this.isFishing = false;
+			mainWindow().webContents.send("fishing-state", this.isFishing)
 		}
 
 		// Handle the pulls when the fish is on the hook
-		if (forcePacketLengths.includes(packetLength) && (
-			// (
-			// 	(this.damageCount + this.pullCount > 5 && this.damageCount + this.pullCount < 10) &&
-			// 	this.pullCount > this.damageCount
-			// ) ||
-			this.fishHealth > (this.startingFishHealth / 2) && (this.fishStrength * 2) > this.lineHp
-		)) {
-			this.consecutiveResetCastCount++;
-			await this.resetCast(true);
-		} 
-		else if (forcePacketLengths.includes(packetLength)) {
+		// if (forcePacketLengths.includes(packetLength) && 
+		// 	(
+		// 		(
+		// 			// this.pullCount > this.fishStrength || 
+		// 			((this.fishStrength * 2) > this.lineHp && (this.fishHealth > this.startingFishHealth * 0.67))
+		// 		)
+		// 	)
+		// ) {
+		// 	this.consecutiveResetCastCount++;
+		// 	await this.resetCast(true);
+		// } 
+		// else 
+		if (forcePacketLengths.includes(packetLength)) {
 			await this.handleForce(bufferHex);
 		}
 
@@ -327,7 +339,13 @@ export class Fishing {
 			bufferHex.slice(39, 40) === "7"
 		) {
 			clearInterval(this.baitTimeInterval)
-			this.reelTimeInterval = setInterval(() => this.reelTime++, 1000);
+			this.reelTimeInterval = setInterval(() => {
+				this.reelTime++
+				// if (this.reelTime > 20) {
+				// 	clearInterval(this.reelTimeInterval)
+				// 	this.resetCast(true);
+				// }
+			}, 1000);
 			this.startingFishHealth = parseInt(bufferHex.slice(44, 46), 16);
 			this.fishHealth = this.startingFishHealth;
 			this.isFishHooked = true;
@@ -335,25 +353,15 @@ export class Fishing {
 			mainWindow().webContents.send("bite", { startingFishHealth: this.startingFishHealth, fishHealth: this.fishHealth });	
 		}
 
-		// Avoid twigs
-		if (
-			packetLength === 77 &&
-			this.isFishHooked === true &&
-			this.fishHealth > 3 && this.fishHealth < 8 && this.damageCount === this.maxConsecutiveDamageCount
-		) {
-			this.consecutiveResetCastCount++;
-			await this.resetCast(true);
-		}
-		
 		// The good damage packet when the fish is on the hook
 		else if (
 			packetLength === 77 &&
 			this.isFishHooked === true &&
-			["7", "e"].includes(bufferHex.slice(39, 40))
+			bufferHex.slice(39, 40) === "e"
 		) {
-			// console.log("dmg")
+			console.log("dmg")
 			this.fishHealth = parseInt(bufferHex.slice(44, 46), 16)
-			mainWindow().webContents.send("hp", this.fishHealth)	
+			mainWindow().webContents.send("hp", this.fishHealth, this.pullCount)	
 			this.damageCount++;
 			this.consecutiveDamageCount++;
 			if (this.maxConsecutiveDamageCount < this.consecutiveDamageCount) {
@@ -361,28 +369,21 @@ export class Fishing {
 			}
 		}
 
-		// Identify packet that has our fishes pulling strength
-		if (
-			packetLength === 77 &&
-			this.isFishHooked === true &&
-			["8"].includes(bufferHex.slice(39, 40))
-		) {
-			this.fishStrength = parseInt(bufferHex.slice(44, 46), 16)
-			mainWindow().webContents.send("fish-strength", this.fishStrength);
-		}
 		if (
 			packetLength === 77 &&
 			["6"].includes(bufferHex.slice(39, 40))
 		) {
 			this.fishStrength = parseInt(bufferHex.slice(44, 46), 16)
-			mainWindow().webContents.send("fish-strength", this.fishStrength);
+			mainWindow().webContents.send("hp", this.fishStrength);
 		}
+
 		//packet length 134/datalen 94 is a fishing rod equip
-		// if (packetLength === 134) {
-		// 	console.log(bufferHex)
-		// }
-		// if (dataLen === 605) {
-		// 	console.log(bufferHex, "\n")
-		// }
+		if (dataLen === 94 && bufferHex.slice(52, 59) !== "fffffff") {
+			this.isFishing = false;
+			mainWindow().webContents.send("fishing-state", this.isFishing);
+		}
+		if (packetLength === 108) {
+			console.log(bufferHex);
+		}
 	}
 }

@@ -20,12 +20,14 @@ const catchMinute = ref(0);
 const hook = ref("");
 const bait = ref("");
 
+const fishingState = ref(false);
 const waterType = ref("");
 const waterDepth = ref("");
 const fishingDepth = ref("");
 const throwingDistance = ref("");
 const uuid = ref("");
 const chance = ref(0);
+const pullCount = ref(0);
 
 const startingFishHp = ref(0);
 const fishHp = ref(0);
@@ -87,8 +89,9 @@ window.ipcRenderer.on("bite", ({startingFishHealth, fishHealth}) => {
   }, 100)
 })
 
-window.ipcRenderer.on("hp", (health) => {
+window.ipcRenderer.on("hp", (health, ipcPullCount) => {
   fishHp.value = health;
+  pullCount.value = ipcPullCount;
 })
 
 window.ipcRenderer.on("fish-strength", (ipcFishStrength) => {
@@ -113,6 +116,10 @@ window.ipcRenderer.on("line-hp", (_lineHp) => {
   lineHp.value = _lineHp
 })
 
+window.ipcRenderer.on("fishing-state", (ipcFishingState) => {
+  fishingState.value = ipcFishingState;
+})
+
 function onSetWindowClick() {
   alwaysOnTop.value = !alwaysOnTop.value;
   window.ipcRenderer.send("set-window", alwaysOnTop.value);
@@ -135,7 +142,7 @@ function onBaitChange() {
 
 <template>
   <div class="grid gap-4">
-    <div class="text-2xl">In game time: {{ hour }}:{{ minute }}</div>
+    <div class="text-2xl">Fishing state: {{ fishingState }}</div>
 
     <div class="grid divide-y gap-y-2">
       <div>
@@ -178,6 +185,7 @@ function onBaitChange() {
         <div>FISH STRENGTH: {{ fishStrength }}</div>
         <div>LINE HP: {{ lineHp }}</div>
         <div>CHANCE: {{ chance }}</div>
+        <div>PULL COUNT: {{ pullCount }}</div>
       </div>
     </div>
   </div>
