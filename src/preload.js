@@ -9,7 +9,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 // Expose ipcRenderer to the client
 contextBridge.exposeInMainWorld('ipcRenderer', {
   send: (channel, data) => {
-    let validChannels = ['set-window', 'set-record', 'set-hook', 'set-bait', 'catch-time', 'debug-catch'] // <-- Array of all ipcRenderer Channels used in the client
+    let validChannels = ['set-window', 'set-record', 'set-hook', 'set-bait', 'set-throw', 'catch-time', 'debug-catch'] // <-- Array of all ipcRenderer Channels used in the client
     if (validChannels.includes(channel)) {
       ipcRenderer.send(channel, data)
     }

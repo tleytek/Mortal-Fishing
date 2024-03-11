@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS catch (
 	max_consecutive_damage_count INT(1),
 	pull_count									INT(1),
 	max_consecutive_pull_count	INT(1),
+	break_time									INT(2),
 	consecutive_reset_cast_count INT(1),
 	reel_time										INT(2),
 	catch_time									TIME,
@@ -62,9 +63,10 @@ export function storeCatch(data) {
 				catch_time,
 				server_catch_time,
 				fish,
-				chance
+				chance,
+				break_time
 			)
-			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);
+			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);
 		`,
 		[
 			data.uuid,
@@ -86,7 +88,8 @@ export function storeCatch(data) {
 			data.catchTime,
 			data.serverTime,
 			data.fish,
-			data.chance
+			data.chance,
+			data.breakTime
 		]
 	);
 };

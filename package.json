@@ -39,6 +39,7 @@
     "cap": "^0.2.1",
     "electron-squirrel-startup": "^1.0.0",
     "ip": "^2.0.0",
+    "keysender": "^2.3.0",
     "packet-reader": "^1.0.0",
     "robotjs": "^0.6.0",
     "sqlite3": "^5.1.7-rc.0",

@@ -19,6 +19,7 @@ const catchMinute = ref(0);
 
 const hook = ref("");
 const bait = ref("");
+const throwForce = ref(50);
 
 const fishingState = ref(false);
 const waterType = ref("");
@@ -138,6 +139,10 @@ function onBaitChange() {
   window.ipcRenderer.send("set-bait", bait.value);
 }
 
+function onThrowChange() {
+  window.ipcRenderer.send("set-throw", throwForce.value);
+}
+
 </script>
 
 <template>
@@ -157,6 +162,10 @@ function onBaitChange() {
         <div>
           <label for="bait">Bait: </label>
           <input name="bait" v-model="bait" @input="onBaitChange">
+        </div>
+        <div>
+          <label for="throw">Throw: </label>
+          <input type="number" name="throw" v-model="throwForce" @input="onThrowChange">
         </div>
         <!-- TODO: Disable or change the "record" checkbox to off if hook or bait is empty -->
         <div>

@@ -13,7 +13,8 @@ const bufSize = 10 * 1024 * 1024;
 const buffer = Buffer.alloc(65535);
 c.open(
 	device,
-	"ip and tcp and (dst net 198.244.200.228 or src net 198.244.200.228)",
+	// "ip and tcp and (dst net 198.244.200.228 or src net 198.244.200.228)",
+	"ip and tcp and (dst net 198.244.212.50 or src net 198.244.212.50)", // beta server
 	bufSize,
 	buffer
 );
@@ -27,6 +28,10 @@ ipcMain.on("set-hook", (_event, hook) => {
 
 ipcMain.on("set-bait", (_event, bait) => {
   fishing.bait = bait;
+});
+
+ipcMain.on("set-throw", (_event, throwForce) => {
+  fishing.throwForce = throwForce;
 });
 
 ipcMain.on("set-record", (_event, record) => {
