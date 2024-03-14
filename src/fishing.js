@@ -4,9 +4,14 @@ import { getWindow as mainWindow } from './window';
 import * as db from "./db.js";
 
 // Nut
+import { Virtual, isButtonPressed, GlobalHotkey } from "keysender";
+
+const mo2 = new Virtual(null, "UnrealWindow"); // find Notepad handle by className and set it as workwindow
 
 const { mouse, Button, keyboard, Key } = require('@nut-tree/nut-js');
 mouse.config.autoDelayMs = 1;
+keyboard.config.autoDelayMs = 1;
+
 /** @type {number[]} */ const forcePacketLengths = [105, 133];
 
 // Action type enums
@@ -15,15 +20,6 @@ const ACTION_TYPE = {
 	RELEASE: "release",
 };
 
-function convert(str) {
-	const newStr = [];
-
-	for (let i = str.length - 2; i >= 0; i -= 2) {
-		newStr.push(str.slice(i, i + 2))
-	}
-
-	return newStr.join("");
-}
 export class Fishing {
 
 	constructor() {
@@ -110,31 +106,6 @@ export class Fishing {
 		clearInterval(this.inGameMinuteInterval)
 	}
 	
-	async resetCast(interrupt) {
-		if (interrupt) {
-			await keyboard.type(Key.Num1);
-			await new Promise((res) => setTimeout(() => res(), 2000))
-			await keyboard.type(Key.Num1);
-			await new Promise((res) => setTimeout(() => res(), 500))
-			await keyboard.type("x");
-			await new Promise((res) => setTimeout(() => res(), 500))
-			await keyboard.type("z");
-			await keyboard.type("2");
-			await keyboard.type("3");
-			await keyboard.type("4");
-		}
-
-		await mouse.releaseButton(Button.RIGHT);
-		await mouse.releaseButton(Button.LEFT);
-		// await notepad.mouse.click("left", 1000, 3000)
-		await new Promise((res) => setTimeout(() => res(), 100))
-		await mouse.pressButton(Button.LEFT);
-		// await new Promise((res) => setTimeout(() => res(), Math.floor(Math.random() * 100)))
-		await new Promise((res) => setTimeout(() => res(), this.throwForce))
-		await mouse.releaseButton(Button.LEFT);
-		console.log("\n")
-	}
-
 	/**
 	 * @param {string} bufferHex 
 	 * @returns {ACTION_TYPE}
@@ -145,11 +116,9 @@ export class Fishing {
 		this.fishHealth = parseInt(bufferHex.slice(44, 46), 16);
 
 		if (actionCharStart === "3f" && (actionChar === "9" || actionChar === "b")) {
-			// console.log("pull");
 			mainWindow().webContents.send("hp", this.fishHealth, this.pullCount);
 			return ACTION_TYPE.PULL;
 		} else if (this.fishIsPulling === true && (actionCharStart === "5b" || actionChar === "a")) {
-			// console.log("release")
 			mainWindow().webContents.send("hp", this.fishHealth, this.pullCount);
 			return ACTION_TYPE.RELEASE;
 		}
@@ -173,13 +142,8 @@ export class Fishing {
 					this.lineHp -= this.fishStrength;
 					mainWindow().webContents.send("line-hp", this.lineHp);
 				} else if ((this.fishStrength * 2 + 5) >= this.lineHp) {
-					if (this.breakTime === 0) console.log(this.reelTime); this.breakTime = this.reelTime;
-					// if (this.breakTime > 0 && this.breakTime < 12) {
-					// 	await this.resetCast(true);
-					// 	return;
-					// }
 					this.holdingRightClick = true;
-					await mouse.pressButton(Button.RIGHT);
+					// await mo2.mouse.toggle("right", true);
 				}
 				this.pullCount++;
 				this.consecutiveDamageCount = 0;
@@ -188,7 +152,7 @@ export class Fishing {
 			case ACTION_TYPE.RELEASE:
 				if (this.holdingRightClick === true) {
 					this.holdingRightClick = false
-					await mouse.releaseButton(Button.RIGHT);
+					await mo2.mouse.toggle("right", false);
 				}
 				mainWindow().webContents.send("line-hp", this.lineHp);
 				this.releaseCount++;
@@ -201,37 +165,10 @@ export class Fishing {
 
 	async cast(bufferString, bufferHex) {
 		const isWater = new RegExp("(?<=Water\=).+?(?=\,)", "g").test(bufferString);
-		
 		if (isWater) {
 			this.isFishing = true;
 			mainWindow().webContents.send("fishing-state", this.isFishing);
 			this.reset();
-			const num1 = bufferHex.slice(402, 412)
-			const num2 = bufferHex.slice(562, 572)
-			const num3 = bufferHex.slice(594, 604)
-			const num4 = bufferHex.slice(658, 668)
-			// console.log(num1, num2, num3, num4)
-			const num1a = convert(num1);
-			const num2a = convert(num2);
-			const num3a = convert(num3);
-			const num4a = convert(num4);
-			
-			const num1i = parseInt(num1a, 16);
-			const num2i = parseInt(num2a, 16);
-			const num3i = parseInt(num3a, 16);
-			const num4i = parseInt(num4a, 16);
-			// console.log(bufferHex, "\n");
-			// console.log(num1i);
-			// console.log(num2i);
-			// console.log(num3i);
-			// console.log(num4i);
-			// console.log(Math.abs((num1i - num2i) + (num2i - num3i) + (num3i - num4i)));
-			// this.chance = parseInt(bufferHex.slice(530, 532), 16);
-			this.chance = Math.abs((num1i - num2i) + (num2i - num3i) + (num3i - num4i))
-			// console.log(bufferHex);
-			console.log("huh", bufferHex.slice(1146, 1210));
-
-			// console.log(bufferString);
 			mainWindow().webContents.send("chance", this.chance)
 			// Lots of data from the cast packet
 			this.baitTimeInterval = setInterval(() => {
@@ -277,13 +214,13 @@ export class Fishing {
 			mainWindow().webContents.send("line-hp", this.lineHp);
 		}
 
-		// if (isWater && this.fishingDepth >= this.waterDepth) {
-		// 	this.resetCast(true);
-		// }
+		if (isWater && this.fishingDepth >= this.waterDepth) {
+			await new Promise((res) => setTimeout(() => res(), 900))
+			await this.resetCast(true);
+		}
 	}
 
 	async catch(fish) {
-		console.log(this.fishStrength, fish)
 		this.isFishing = false;
 		mainWindow().webContents.send("fishing-state", this.isFishing);
 		clearInterval(this.inGameMinuteInterval);
@@ -315,8 +252,21 @@ export class Fishing {
 			});
 		}
 		mainWindow().webContents.send("catch", fish);
-		this.resetCast(false);
+		await this.resetCast(false);
 		this.consecutiveResetCastCount = 0;
+	}
+
+	async resetCast(interrupt) {
+		if (interrupt) {
+			await new Promise((res) => setTimeout(() => res(), 750))
+			await mo2.keyboard.toggleKey("t", true, 3000);
+			await mo2.keyboard.toggleKey("t", false);
+		}
+		await new Promise((res) => setTimeout(() => res(), 1000))
+		await mo2.keyboard.toggleKey("t", true, 50);
+		await mo2.keyboard.toggleKey("t", false);
+		await mo2.keyboard.toggleKey("t", true, 50);
+		await mo2.keyboard.toggleKey("t", false);
 	}
 
 	async handlePacket(bufferString, bufferHex, packetLength, dataLen) {
@@ -333,7 +283,7 @@ export class Fishing {
 			this.startingFishHealth = parseInt(bufferHex.slice(44, 46), 16);
 			this.fishHealth = this.startingFishHealth;
 			this.isFishHooked = true;
-			await mouse.pressButton(Button.LEFT);
+			await mo2.keyboard.toggleKey("t", true);
 			mainWindow().webContents.send("bite", { startingFishHealth: this.startingFishHealth, fishHealth: this.fishHealth });	
 			return;
 		}
@@ -343,7 +293,6 @@ export class Fishing {
 			this.isFishHooked === true &&
 			bufferHex.slice(39, 40) === "e"
 		) {
-			// console.log("dmg")
 			this.fishHealth = parseInt(bufferHex.slice(44, 46), 16)
 			mainWindow().webContents.send("hp", this.fishHealth, this.pullCount)	
 			this.damageCount++;
@@ -359,7 +308,6 @@ export class Fishing {
 			this.isFishHooked === true &&
 			["8"].includes(bufferHex.slice(39, 40))
 		) {
-			console.log(bufferHex)
 			this.fishStrength = parseInt(bufferHex.slice(44, 46), 16)
 			mainWindow().webContents.send("fish-strength", this.fishStrength);
 			return;
@@ -370,6 +318,7 @@ export class Fishing {
 			await this.cast(bufferString, bufferHex);
 			return;
 		}
+
 		if (packetLength === 645 && bufferHex.slice(38, 40) === "2c") {
 			this.isFishing = false;
 			mainWindow().webContents.send("fishing-state", this.isFishing);
@@ -388,10 +337,8 @@ export class Fishing {
 			["6"].includes(bufferHex.slice(39, 40))
 		) {
 			this.nibbleCount++;
-			console.log(this.nibbleCount)
 			this.prevBiteInter = this.baitTime;
 			this.fishStrength = parseInt(bufferHex.slice(44, 46), 16)
-			mainWindow().webContents.send("hp", this.fishStrength, this.nibbleCount);
 			return;
 		}
 
@@ -413,26 +360,23 @@ export class Fishing {
 			const t2 = bufferString.match(/Tier 2[a-zA-Z]*\b/g);
 			const tier = t1 ?? t2;
 			const ring = "Ring"+tier;
-			db.storeCatch(ring);
-			this.resetCast(false);
+			this.catch(ring);
 			return;
 		}
+
 		if (this.isFishing === true && amuletMatches) {
 			const t1 = bufferString.match(/Tier 1[a-zA-Z]*\b/g);
 			const t2 = bufferString.match(/Tier 2[a-zA-Z]*\b/g);
 			const tier = t1 ?? t2;
 			const amulet = "Amulet"+tier;
-			db.storeCatch(amulet);
-			this.resetCast(false);
+			this.catch(amulet)
 			return;
 		}
+
 		// Catch detection
-		if (this.isFishing === true && catchMatches && fish) {
+		if (catchMatches && fish) {
 			await this.catch(fish[0]);
 			return;
 		}
-		// if (packetLength === 645 && bufferHex.slice(38, 40) === "34") {
-		// 	console.log(bufferHex);
-		// }
 	}
 }

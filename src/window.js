@@ -36,5 +36,3 @@ export function createWindow() {
 export function getWindow() {
   return mainWindow; 
 }
-
-// module.exports = { createWindow, getWindow }

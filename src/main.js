@@ -1,9 +1,7 @@
 const { app, BrowserWindow, nativeTheme } = require('electron');
 import { createWindow } from "./window.js";
 import { start } from "./cap.js"
-import { Hardware } from "keysender";
-// const notepad = new Virtual(null, "UnrealWindow"); // find Notepad handle by className and set it as workwindow
-const notepad = new Hardware(); // find Notepad handle by className and set it as workwindow
+
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (require('electron-squirrel-startup')) {
   app.quit();
@@ -37,4 +35,3 @@ app.on('activate', () => {
 // code. You can also put them in separate files and import them here
 
 start();
-

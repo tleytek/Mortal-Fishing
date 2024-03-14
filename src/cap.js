@@ -13,8 +13,8 @@ const bufSize = 10 * 1024 * 1024;
 const buffer = Buffer.alloc(65535);
 c.open(
 	device,
-	// "ip and tcp and (dst net 198.244.200.228 or src net 198.244.200.228)",
-	"ip and tcp and (dst net 198.244.212.50 or src net 198.244.212.50)", // beta server
+	"ip and tcp and (dst net 198.244.200.228 or src net 198.244.200.228)",
+	// "ip and tcp and (dst net 198.244.212.50 or src net 198.244.212.50)", // beta server
 	bufSize,
 	buffer
 );
@@ -51,7 +51,6 @@ export function start() {
 		// String up that packet
 		const bufferString = buffer.toString('binary', tcpret.offset, tcpret.offset + datalen);
 		const bufferHex = buffer.toString('hex', tcpret.offset, tcpret.offset + datalen)
-		// console.log(buffer.toString('hex', 0, 1));
 
     await fishing.handlePacket(bufferString, bufferHex, ipret.info.totallen, datalen)
   })
