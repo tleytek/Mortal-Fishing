@@ -4,8 +4,9 @@ import { getWindow as mainWindow } from './window';
 import * as db from "./db.js";
 
 // Nut
-import { Virtual, isButtonPressed, GlobalHotkey } from "keysender";
+import { Hardware, Virtual, isButtonPressed } from "keysender";
 
+// const mo2 = new Virtual(null, "UnrealWindow"); // find Notepad handle by className and set it as workwindow
 const mo2 = new Virtual(null, "UnrealWindow"); // find Notepad handle by className and set it as workwindow
 
 const { mouse, Button, keyboard, Key } = require('@nut-tree/nut-js');
@@ -73,6 +74,7 @@ export class Fishing {
 		this.waitBite = 0;
 		this.prevBiteInter = 0;
 		this.nibbleCount = 0;
+		this.test = false;
 	}
 
 	reset() {
@@ -101,6 +103,7 @@ export class Fishing {
 		this.chance = 0;
 		this.waitBite = 0;
 		this.prevBiteInter = 0;
+		this.test = false;
 		clearInterval(this.baitTimeInterval);
 		clearInterval(this.reelTimeInterval);
 		clearInterval(this.inGameMinuteInterval)
@@ -252,7 +255,7 @@ export class Fishing {
 			});
 		}
 		mainWindow().webContents.send("catch", fish);
-		await this.resetCast(false);
+		this.resetCast(false);
 		this.consecutiveResetCastCount = 0;
 	}
 
@@ -262,7 +265,11 @@ export class Fishing {
 			await mo2.keyboard.toggleKey("t", true, 3000);
 			await mo2.keyboard.toggleKey("t", false);
 		}
-		await new Promise((res) => setTimeout(() => res(), 1000))
+		// await new Promise((res) => setTimeout(() => res(), 100))
+		// await mo2.keyboard.toggleKey("t", true, 50);
+		// await mo2.keyboard.toggleKey("t", false);
+		// await mo2.keyboard.toggleKey("t", true, 50);
+		// await mo2.keyboard.toggleKey("t", false);
 		await mo2.keyboard.toggleKey("t", true, 50);
 		await mo2.keyboard.toggleKey("t", false);
 		await mo2.keyboard.toggleKey("t", true, 50);
@@ -283,7 +290,7 @@ export class Fishing {
 			this.startingFishHealth = parseInt(bufferHex.slice(44, 46), 16);
 			this.fishHealth = this.startingFishHealth;
 			this.isFishHooked = true;
-			await mo2.keyboard.toggleKey("t", true);
+			await mo2.keyboard.toggleKey("t", true)
 			mainWindow().webContents.send("bite", { startingFishHealth: this.startingFishHealth, fishHealth: this.fishHealth });	
 			return;
 		}
@@ -306,6 +313,7 @@ export class Fishing {
 		if (
 			packetLength === 77 &&
 			this.isFishHooked === true &&
+			this.test === false &&
 			["8"].includes(bufferHex.slice(39, 40))
 		) {
 			this.fishStrength = parseInt(bufferHex.slice(44, 46), 16)
