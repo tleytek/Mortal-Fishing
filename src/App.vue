@@ -121,6 +121,10 @@ window.ipcRenderer.on("fishing-state", (ipcFishingState) => {
   fishingState.value = ipcFishingState;
 })
 
+window.ipcRenderer.on("bait", (ipcBait) => {
+  bait.value = ipcBait;
+})
+
 function onSetWindowClick() {
   alwaysOnTop.value = !alwaysOnTop.value;
   window.ipcRenderer.send("set-window", alwaysOnTop.value);
@@ -159,10 +163,7 @@ function onThrowChange() {
           <label for="hook">Hook: </label>
           <input name="hook" v-model="hook" @input="onHookChange">
         </div>
-        <div>
-          <label for="bait">Bait: </label>
-          <input name="bait" v-model="bait" @input="onBaitChange">
-        </div>
+        <div>Bait: {{ bait }}</div>
         <div>
           <label for="throw">Throw: </label>
           <input type="number" name="throw" v-model="throwForce" @input="onThrowChange">

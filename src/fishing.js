@@ -21,6 +21,19 @@ const ACTION_TYPE = {
 	RELEASE: "release",
 };
 
+function hex2a(hexx) {
+	console.log(hexx)
+    var hex = hexx.toString();//force conversion
+    var str = '';
+    for (var i = 0; i < hex.length; i += 2) {
+			if (hex.substr(i, 2) === "00") {
+				return str;
+			}
+      str += String.fromCharCode(parseInt(hex.substr(i, 2), 16));
+		}
+    return str;
+}
+
 export class Fishing {
 
 	constructor() {
@@ -146,7 +159,7 @@ export class Fishing {
 					mainWindow().webContents.send("line-hp", this.lineHp);
 				} else if ((this.fishStrength * 2 + 5) >= this.lineHp) {
 					this.holdingRightClick = true;
-					// await mo2.mouse.toggle("right", true);
+					await mo2.mouse.toggle("right", true);
 				}
 				this.pullCount++;
 				this.consecutiveDamageCount = 0;
@@ -169,7 +182,7 @@ export class Fishing {
 	async cast(bufferString, bufferHex) {
 		const isWater = new RegExp("(?<=Water\=).+?(?=\,)", "g").test(bufferString);
 		if (isWater) {
-			mo2.keyboard.sendKey("t");
+			mo2.keyboard.sendKey("t", 1, 1);
 			this.isFishing = true;
 			mainWindow().webContents.send("fishing-state", this.isFishing);
 			this.reset();
@@ -260,16 +273,20 @@ export class Fishing {
 	}
 
 	async resetCast(interrupt) {
+		// await mo2.keyboard.toggleKey("t", true, 1);
+		// await mo2.keyboard.toggleKey("t", false, 1);
 		if (interrupt) {
 			await new Promise((res) => setTimeout(() => res(), 750))
 			await mo2.keyboard.toggleKey("t", true, 3000);
 			await mo2.keyboard.toggleKey("t", false);
 		}
-		await new Promise((res) => setTimeout(() => res(), 100))
+		// await new Promise((res) => setTimeout(() => res(), 100))
 		await mo2.keyboard.toggleKey("t", true, 50);
 		await mo2.keyboard.toggleKey("t", false);
-		// await mo2.keyboard.toggleKey("t", true, 50);
-		// await mo2.keyboard.toggleKey("t", false);
+		await mo2.keyboard.toggleKey("t", true, 50);
+		await mo2.keyboard.toggleKey("t", false);
+		await mo2.keyboard.toggleKey("t", true, 50);
+		await mo2.keyboard.toggleKey("t", false);
 		// await mo2.keyboard.sendKey("t", 35, 100);
 		// await mo2.keyboard.sendKey("t", 35, 100);
 		// await mo2.keyboard.sendKey("t", 35, 100);
@@ -277,6 +294,39 @@ export class Fishing {
 	}
 
 	async handlePacket(bufferString, bufferHex, packetLength, dataLen) {
+		// Match and organize our possible catches (TODO: fish and catchMatches the same??)
+		const fish = JSON.stringify(bufferString).match(/(?<=fish\.).+?(?=\\)/g);
+		const catchMatches = bufferString.match(/Resources[a-zA-Z]*\b/g);
+		const amuletMatches = bufferString.match(/Misc.Trinkets.Amulet[a-zA-Z]*\b/g);
+		const ringMatches = bufferString.match(/Misc.Trinkets.Ring[a-zA-Z]*\b/g);
+
+		if (ringMatches) {
+			console.log("ring");
+			const t1 = bufferString.match(/Tier 1[a-zA-Z]*\b/g);
+			const t2 = bufferString.match(/Tier 2[a-zA-Z]*\b/g);
+			const tier = t1 ?? t2;
+			const ring = "Ring"+tier;
+			await this.catch(ring);
+			return;
+		}
+
+		if (amuletMatches) {
+			console.log("amulet");
+			const t1 = bufferString.match(/Tier 1[a-zA-Z]*\b/g);
+			const t2 = bufferString.match(/Tier 2[a-zA-Z]*\b/g);
+			const tier = t1 ?? t2;
+			const amulet = "Amulet"+tier;
+			await this.catch(amulet)
+			return;
+		}
+
+		// Catch detection
+		if (catchMatches && fish) {
+			console.log("recieved catch packet", this.baitTime, this.reelTime)
+			await this.catch(fish[0]);
+			return;
+		}
+
 		// The hook
 		if (
 			packetLength === 77 &&
@@ -290,7 +340,7 @@ export class Fishing {
 			this.startingFishHealth = parseInt(bufferHex.slice(44, 46), 16);
 			this.fishHealth = this.startingFishHealth;
 			this.isFishHooked = true;
-			await mo2.keyboard.toggleKey("t", true)
+			await mo2.keyboard.toggleKey("t", true, 1)
 			console.log("receiving hook packet, started pressing left click", this.baitTime, this.reelTime)
 			mainWindow().webContents.send("bite", { startingFishHealth: this.startingFishHealth, fishHealth: this.fishHealth });	
 			return;
@@ -309,6 +359,7 @@ export class Fishing {
 			if (this.maxConsecutiveDamageCount < this.consecutiveDamageCount) {
 				this.maxConsecutiveDamageCount = this.consecutiveDamageCount;
 			}
+			// await mo2.keyboard.sendKey("t", 1, 1);
 			return;
 		}
 		// Identify packet that has our fishes pulling strength
@@ -320,6 +371,8 @@ export class Fishing {
 			console.log("recieving strength packet", this.baitTime, this.reelTime);
 			this.fishStrength = parseInt(bufferHex.slice(44, 46), 16)
 			mainWindow().webContents.send("fish-strength", this.fishStrength);
+			// await mo2.keyboard.toggleKey("t", false, 1)
+			// await mo2.keyboard.sendKey("t", 1, 1);
 			return;
 		}
 
@@ -356,6 +409,26 @@ export class Fishing {
 			mainWindow().webContents.send("fishing-state", this.isFishing);
 			return;
 		}
+
+		if (packetLength === 645 && bufferHex.slice(38, 40) === "2e") {
+			console.log("whatis this", this.baitTime, this.reelTime);
+			this.isFishing = false;
+			mainWindow().webContents.send("fishing-state", this.isFishing);
+			return;
+		}
+
+		if (packetLength === 645 && bufferHex.slice(38, 40) === "29") {
+			const cut = bufferHex.slice(210);
+			this.bait = hex2a(cut);
+			mainWindow().webContents.send("bait", this.bait);
+			return;
+		}
+
+		if (packetLength === 645 && bufferHex.slice(38, 40) === "2b") {
+			console.log(bufferHex);
+			return;
+		}
+
 		// Handle the pulls when the fish is on the hook
 		if (forcePacketLengths.includes(packetLength)) {
 			await this.handleForce(bufferHex);
@@ -377,37 +450,6 @@ export class Fishing {
 		if (dataLen === 94 && bufferHex.slice(52, 59) !== "fffffff") {
 			this.isFishing = false;
 			mainWindow().webContents.send("fishing-state", this.isFishing);
-			return;
-		}
-
-		// Match and organize our possible catches (TODO: fish and catchMatches the same??)
-		const fish = JSON.stringify(bufferString).match(/(?<=fish\.).+?(?=\\)/g);
-		const catchMatches = bufferString.match(/Resources[a-zA-Z]*\b/g);
-		const amuletMatches = bufferString.match(/Misc.Trinkets.Amulet[a-zA-Z]*\b/g);
-		const ringMatches = bufferString.match(/Misc.Trinkets.Ring[a-zA-Z]*\b/g);
-
-		if (this.isFishing === true && ringMatches) {
-			const t1 = bufferString.match(/Tier 1[a-zA-Z]*\b/g);
-			const t2 = bufferString.match(/Tier 2[a-zA-Z]*\b/g);
-			const tier = t1 ?? t2;
-			const ring = "Ring"+tier;
-			this.catch(ring);
-			return;
-		}
-
-		if (this.isFishing === true && amuletMatches) {
-			const t1 = bufferString.match(/Tier 1[a-zA-Z]*\b/g);
-			const t2 = bufferString.match(/Tier 2[a-zA-Z]*\b/g);
-			const tier = t1 ?? t2;
-			const amulet = "Amulet"+tier;
-			this.catch(amulet)
-			return;
-		}
-
-		// Catch detection
-		if (catchMatches && fish) {
-			console.log("recieved catch packet", this.baitTime, this.reelTime)
-			await this.catch(fish[0]);
 			return;
 		}
 	}
