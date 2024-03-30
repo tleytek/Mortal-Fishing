@@ -190,7 +190,7 @@ export class Fishing {
 			// Lots of data from the cast packet
 			this.baitTimeInterval = setInterval(() => {
 				this.baitTime++
-			}, 1);
+			}, 1000);
 			this.water = bufferString.match(/(?<=Water\=).+?(?=\,)/g)[0].split("_")[1];
 			this.waterDepth = +bufferString.match(/(?<=WaterDepth=).+?(?=\,)/g)[0];
 			this.fishingDepth = +bufferString.match(/(?<=FishingDepth=).+?(?=\,)/g)[0];
@@ -273,24 +273,17 @@ export class Fishing {
 	}
 
 	async resetCast(interrupt) {
-		// await mo2.keyboard.toggleKey("t", true, 1);
-		// await mo2.keyboard.toggleKey("t", false, 1);
 		if (interrupt) {
 			await new Promise((res) => setTimeout(() => res(), 750))
 			await mo2.keyboard.toggleKey("t", true, 3000);
 			await mo2.keyboard.toggleKey("t", false);
 		}
-		// await new Promise((res) => setTimeout(() => res(), 100))
 		await mo2.keyboard.toggleKey("t", true, 50);
 		await mo2.keyboard.toggleKey("t", false);
 		await mo2.keyboard.toggleKey("t", true, 50);
 		await mo2.keyboard.toggleKey("t", false);
 		await mo2.keyboard.toggleKey("t", true, 50);
 		await mo2.keyboard.toggleKey("t", false);
-		// await mo2.keyboard.sendKey("t", 35, 100);
-		// await mo2.keyboard.sendKey("t", 35, 100);
-		// await mo2.keyboard.sendKey("t", 35, 100);
-		// await mo2.keyboard.sendKey("t", 35, 100);
 	}
 
 	async handlePacket(bufferString, bufferHex, packetLength, dataLen) {
@@ -301,7 +294,6 @@ export class Fishing {
 		const ringMatches = bufferString.match(/Misc.Trinkets.Ring[a-zA-Z]*\b/g);
 
 		if (ringMatches) {
-			console.log("ring");
 			const t1 = bufferString.match(/Tier 1[a-zA-Z]*\b/g);
 			const t2 = bufferString.match(/Tier 2[a-zA-Z]*\b/g);
 			const tier = t1 ?? t2;
@@ -311,7 +303,6 @@ export class Fishing {
 		}
 
 		if (amuletMatches) {
-			console.log("amulet");
 			const t1 = bufferString.match(/Tier 1[a-zA-Z]*\b/g);
 			const t2 = bufferString.match(/Tier 2[a-zA-Z]*\b/g);
 			const tier = t1 ?? t2;
@@ -322,7 +313,6 @@ export class Fishing {
 
 		// Catch detection
 		if (catchMatches && fish) {
-			console.log("recieved catch packet", this.baitTime, this.reelTime)
 			await this.catch(fish[0]);
 			return;
 		}
@@ -336,12 +326,11 @@ export class Fishing {
 			clearInterval(this.baitTimeInterval)
 			this.reelTimeInterval = setInterval(() => {
 				this.reelTime++
-			}, 1);
+			}, 1000);
 			this.startingFishHealth = parseInt(bufferHex.slice(44, 46), 16);
 			this.fishHealth = this.startingFishHealth;
 			this.isFishHooked = true;
 			await mo2.keyboard.toggleKey("t", true, 1)
-			console.log("receiving hook packet, started pressing left click", this.baitTime, this.reelTime)
 			mainWindow().webContents.send("bite", { startingFishHealth: this.startingFishHealth, fishHealth: this.fishHealth });	
 			return;
 		}
@@ -351,7 +340,6 @@ export class Fishing {
 			this.isFishHooked === true &&
 			bufferHex.slice(39, 40) === "e"
 		) {
-			console.log("receiving damage packet", this.baitTime, this.reelTime)
 			this.fishHealth = parseInt(bufferHex.slice(44, 46), 16)
 			mainWindow().webContents.send("hp", this.fishHealth, this.pullCount)	
 			this.damageCount++;
@@ -359,59 +347,49 @@ export class Fishing {
 			if (this.maxConsecutiveDamageCount < this.consecutiveDamageCount) {
 				this.maxConsecutiveDamageCount = this.consecutiveDamageCount;
 			}
-			// await mo2.keyboard.sendKey("t", 1, 1);
 			return;
 		}
-		// Identify packet that has our fishes pulling strength
+
 		if (
 			packetLength === 77 &&
 			this.isFishHooked === true &&
 			["8"].includes(bufferHex.slice(39, 40))
 		) {
-			console.log("recieving strength packet", this.baitTime, this.reelTime);
 			this.fishStrength = parseInt(bufferHex.slice(44, 46), 16)
 			mainWindow().webContents.send("fish-strength", this.fishStrength);
-			// await mo2.keyboard.toggleKey("t", false, 1)
-			// await mo2.keyboard.sendKey("t", 1, 1);
 			return;
 		}
 
 		// Cast detection
 		if (packetLength === 645 && bufferHex.slice(38, 40) === "2f") {
-			console.log("sending start fishing state packet", this.baitTime, this.reelTime, "\n");
 			await this.cast(bufferString, bufferHex);
 			return;
 		}
 
 		if (packetLength === 645 && bufferHex.slice(38, 40) === "2c") {
-			console.log("sending release fishing state packet", this.baitTime, this.reelTime);
 			this.isFishing = false;
 			mainWindow().webContents.send("fishing-state", this.isFishing);
 			return;
 		}
 		if (packetLength === 645 && bufferHex.slice(38, 40) === "2d") {
-			console.log("sending left click reeling packet", this.baitTime, this.reelTime);
 			this.isFishing = false;
 			mainWindow().webContents.send("fishing-state", this.isFishing);
 			return;
 		}
 	
 		if (packetLength === 645 && bufferHex.slice(38, 40) === "33") {
-			console.log("sending left click cast press packet", this.baitTime, this.reelTime);
 			this.isFishing = false;
 			mainWindow().webContents.send("fishing-state", this.isFishing);
 			return;
 		}
 
 		if (packetLength === 645 && bufferHex.slice(38, 40) === "34") {
-			console.log("sending left click cast release packet", this.baitTime, this.reelTime);
 			this.isFishing = false;
 			mainWindow().webContents.send("fishing-state", this.isFishing);
 			return;
 		}
 
 		if (packetLength === 645 && bufferHex.slice(38, 40) === "2e") {
-			console.log("whatis this", this.baitTime, this.reelTime);
 			this.isFishing = false;
 			mainWindow().webContents.send("fishing-state", this.isFishing);
 			return;
@@ -421,11 +399,6 @@ export class Fishing {
 			const cut = bufferHex.slice(210);
 			this.bait = hex2a(cut);
 			mainWindow().webContents.send("bait", this.bait);
-			return;
-		}
-
-		if (packetLength === 645 && bufferHex.slice(38, 40) === "2b") {
-			console.log(bufferHex);
 			return;
 		}
 
