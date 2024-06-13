@@ -6,6 +6,8 @@
   "main": ".vite/build/main.js",
   "scripts": {
     "start": "electron-forge start",
+    "start1": "electron-forge start -- 68538",
+    "start2": "electron-forge start -- 985384",
     "package": "electron-forge package",
     "make": "electron-forge make",
     "publish": "electron-forge publish",

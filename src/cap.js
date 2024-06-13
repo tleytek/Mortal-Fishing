@@ -13,6 +13,7 @@ const bufSize = 10 * 1024 * 1024;
 const buffer = Buffer.alloc(65535);
 c.open(
 	device,
+	// "ip and tcp and (dst net 51.89.172.207 or src net 51.89.172.207)", // Auction server
 	"ip and tcp and (dst net 198.244.200.228 or src net 198.244.200.228)",
 	// "ip and tcp and (dst net 198.244.212.50 or src net 198.244.212.50)", // beta server
 	bufSize,

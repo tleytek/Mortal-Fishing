@@ -6,12 +6,9 @@ import * as db from "./db.js";
 // Nut
 import { Virtual } from "keysender";
 
-// const mo2 = new Virtual(null, "UnrealWindow"); // find Notepad handle by className and set it as workwindow
 const mo2 = new Virtual(null, "UnrealWindow"); // find Notepad handle by className and set it as workwindow
-
-const { mouse, Button, keyboard, Key } = require('@nut-tree/nut-js');
-mouse.config.autoDelayMs = 1;
-keyboard.config.autoDelayMs = 1;
+// const pid = +process.argv[2];
+// const mo2 = new Virtual(pid);
 
 /** @type {number[]} */ const forcePacketLengths = [105, 133];
 
@@ -22,7 +19,6 @@ const ACTION_TYPE = {
 };
 
 function hex2a(hexx) {
-	console.log(hexx)
     var hex = hexx.toString();//force conversion
     var str = '';
     for (var i = 0; i < hex.length; i += 2) {
@@ -159,7 +155,7 @@ export class Fishing {
 					mainWindow().webContents.send("line-hp", this.lineHp);
 				} else if ((this.fishStrength * 2 + 5) >= this.lineHp) {
 					this.holdingRightClick = true;
-					await mo2.mouse.toggle("right", true);
+					await mo2.keyboard.toggleKey("y", true);
 				}
 				this.pullCount++;
 				this.consecutiveDamageCount = 0;
@@ -168,7 +164,7 @@ export class Fishing {
 			case ACTION_TYPE.RELEASE:
 				if (this.holdingRightClick === true) {
 					this.holdingRightClick = false
-					await mo2.mouse.toggle("right", false);
+					await mo2.keyboard.toggleKey("y", false);
 				}
 				mainWindow().webContents.send("line-hp", this.lineHp);
 				this.releaseCount++;
@@ -199,8 +195,14 @@ export class Fishing {
 			this.serverTime = +bufferString.match(/(?<=Time=).+?(?=\.)/g)[0];
 
 			// Time stuff
-			const totalIngameMinutes = this.serverTime / 6.41025416666667;
-			const minutesMod = totalIngameMinutes % 1440;
+			const epochSeconds = Math.floor(Date.now() / 1000)
+			// Every real word second is 9.36 Mortal seconds
+			// Epoch seconds is how many seconds has passed since jan 1 1970
+			// To find how many Mortal seconds that is, we multiply our value of 9.36 by the current epoch seconds (not milliseconds)
+			// Then divide our total mortal seconds in epoch by 60 to get to total MORTAL minutes that has passed since jan 1 1970
+			
+			const totalIngameMinutes= Math.floor(((epochSeconds - 600) * 9.3600032760011) / 60);
+			const minutesMod = (totalIngameMinutes) % 1440;
 			this.castHour = Math.floor(minutesMod / 60);
 			this.castMinute = Math.floor(minutesMod % 60);
 			this.catchHour = this.castHour;
@@ -215,7 +217,7 @@ export class Fishing {
 				if (this.catchHour === 24) {
 					this.catchHour = 0;
 				}
-			}, 6410.254166666666667);
+			}, 6410.2541666666985812299267652052);
 
 			mainWindow().webContents.send(
 				"cast",
@@ -278,11 +280,8 @@ export class Fishing {
 			await mo2.keyboard.toggleKey("t", true, 3000);
 			await mo2.keyboard.toggleKey("t", false);
 		}
-		await mo2.keyboard.toggleKey("t", true, 50);
-		await mo2.keyboard.toggleKey("t", false);
-		await mo2.keyboard.toggleKey("t", true, 50);
-		await mo2.keyboard.toggleKey("t", false);
-		await mo2.keyboard.toggleKey("t", true, 50);
+		await mo2.keyboard.toggleKey("t", false, 100);
+		await mo2.keyboard.toggleKey("t", true, this.throwForce);
 		await mo2.keyboard.toggleKey("t", false);
 	}
 
