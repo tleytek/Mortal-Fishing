@@ -26,8 +26,6 @@ const waterType = ref("");
 const waterDepth = ref("");
 const fishingDepth = ref("");
 const throwingDistance = ref("");
-const uuid = ref("");
-const chance = ref(0);
 const pullCount = ref(0);
 
 const startingFishHp = ref(0);
@@ -48,10 +46,6 @@ setInterval(function() {
 	}
 }, 6410.2541666667);
 
-window.ipcRenderer.on("chance", (ipcChance) => {
-  chance.value = ipcChance;
-})
-
 window.ipcRenderer.on("cast", (
   ipcWaterType,
   ipcWaterDepth,
@@ -59,7 +53,6 @@ window.ipcRenderer.on("cast", (
   ipcCastHour,
   ipcCastMinute,
   ipcThrowingDistance,
-  ipcUUID,
 ) => {
   hour.value = ipcCastHour;
   minute.value = ipcCastMinute;
@@ -70,7 +63,6 @@ window.ipcRenderer.on("cast", (
   waterDepth.value = ipcWaterDepth;
   fishingDepth.value = ipcFishingDepth;
   throwingDistance.value = ipcThrowingDistance;
-  uuid.value = ipcUUID;
 
   clearInterval(baitTimer)
   clearInterval(reelTimer)
@@ -180,7 +172,6 @@ function onThrowChange() {
           <div>Water depth: {{ waterDepth }}</div>
           <div>Fishing depth: {{ fishingDepth }}</div>
           <div>Throwing distance: {{ throwingDistance }}</div>
-          <div class="col-span-2">UUID: {{ uuid }}</div>
       </div>
       <div class="grid grid-cols-2 pt-2">
         <div>Caught at: [ {{ catchHour }} : {{ catchMinute }} ]</div>
@@ -194,7 +185,6 @@ function onThrowChange() {
         <div>FISH HP: {{ fishHp }} / {{ startingFishHp }}</div>
         <div>FISH STRENGTH: {{ fishStrength }}</div>
         <div>LINE HP: {{ lineHp }}</div>
-        <div>CHANCE: {{ chance }}</div>
         <div>PULL COUNT: {{ pullCount }}</div>
       </div>
     </div>

@@ -1,15 +1,9 @@
 // Electron/Node modules
 import { getWindow as mainWindow } from './window';
-
 import * as db from "./db.js";
-
-// Nut
 import { Virtual } from "keysender";
 
 const mo2 = new Virtual(null, "UnrealWindow"); // find Notepad handle by className and set it as workwindow
-// const pid = +process.argv[2];
-// const mo2 = new Virtual(pid);
-
 /** @type {number[]} */ const forcePacketLengths = [105, 133];
 
 // Action type enums
@@ -18,7 +12,7 @@ const ACTION_TYPE = {
 	RELEASE: "release",
 };
 
-function hex2a(hexx) {
+function hex2ascii(hexx) {
     var hex = hexx.toString();//force conversion
     var str = '';
     for (var i = 0; i < hex.length; i += 2) {
@@ -31,11 +25,8 @@ function hex2a(hexx) {
 }
 
 export class Fishing {
-
 	constructor() {
-
 		/** @type {boolean} */ this.record = false;
-
 		// Fishing times
 		/** @type {number} */ this.castHour = 0;
 		/** @type {number} */ this.castMinute = 0;
@@ -43,25 +34,20 @@ export class Fishing {
 		/** @type {number} */ this.catchMinute = 0;
 		/** @type {number} */ this.baitTime = 0;
 		/** @type {number} */ this.reelTime = 0;
-		/** @type {number} */ this.breakTime = 0;
-		/** @type {number} */ this.serverTime = 0;
-
+		// Intervals
 		/** @type {typeof setInterval} */ this.inGameMinuteInterval;
 		/** @type {typeof setInterval} */ this.baitTimeInterval;
 		/** @type {typeof setInterval} */ this.reelTimeInterval;
-
+		// Timeouts
+		/** @type {typeof setTimeout} */ this.deadBaitTimeout;
 		// Fisherman states
 		/** @type {string} */ this.hook = "";
 		/** @type {string} */ this.bait = "";
 		/** @type {boolean} */ this.throwForce = 50;
-
 		// Fishing environment states
 		/** @type {number} */ this.waterDepth = 0;
 		/** @type {string} */ this.water = "";
-		/** @type {string} */ this.uuid = "";
 		/** @type {number} */ this.fishingDepth = 0;
-		/** @type {number} */ this.chance = 0;
-
 		// Fishing activity states
 		/** @type {boolean} */ this.isFishing = false;
 		/** @type {number}  */ this.fishStrength = 0;
@@ -71,19 +57,13 @@ export class Fishing {
 		/** @type {boolean} */ this.isFishHooked = false;
 		/** @type {boolean} */ this.fishIsPulling = false;
 		/** @type {boolean} */ this.holdingRightClick = false;
+		// Other
 		/** @type {number} 	*/ this.damageCount = 0;
 		/** @type {number} 	*/ this.consecutiveDamageCount = 0;
 		/** @type {number} 	*/ this.maxConsecutiveDamageCount = 0;
 		/** @type {number} 	*/ this.pullCount = 0;
 		/** @type {number} 	*/ this.consecutivePullCount = 0;
 		/** @type {number} 	*/ this.maxConsecutivePullCount = 0;
-		/** @type {number} 	*/ this.releaseCount = 0;
-		/** @type {number} 	*/ this.consecutiveResetCastCount = 0;
-
-		this.waitBite = 0;
-		this.prevBiteInter = 0;
-		this.nibbleCount = 0;
-		this.test = false;
 	}
 
 	reset() {
@@ -99,23 +79,17 @@ export class Fishing {
 		this.pullCount = 0;
 		this.consecutivePullCount = 0;
 		this.maxConsecutivePullCount = 0;
-		this.releaseCount = 0;
 		this.nibbleCount = 0;
 		this.waterDepth = 0;
 		this.fishingDepth = 0;
 		this.currentWater = "";
-		this.uuid = "";
 		this.holdingRightClick = false;
 		this.baitTime = 0;
 		this.reelTime = 0;
-		this.breakTime = 0;
-		this.chance = 0;
-		this.waitBite = 0;
-		this.prevBiteInter = 0;
-		this.test = false;
 		clearInterval(this.baitTimeInterval);
 		clearInterval(this.reelTimeInterval);
-		clearInterval(this.inGameMinuteInterval)
+		clearInterval(this.inGameMinuteInterval);
+		clearTimeout(this.deadBaitTimeout);
 	}
 	
 	/**
@@ -167,7 +141,6 @@ export class Fishing {
 					await mo2.keyboard.toggleKey("y", false);
 				}
 				mainWindow().webContents.send("line-hp", this.lineHp);
-				this.releaseCount++;
 				this.consecutivePullCount = 0;
 				this.consecutiveDamageCount = 0;
 				this.fishIsPulling = false;
@@ -175,14 +148,12 @@ export class Fishing {
 		}
 	}
 
-	async cast(bufferString, bufferHex) {
+	async cast(bufferString) {
 		const isWater = new RegExp("(?<=Water\=).+?(?=\,)", "g").test(bufferString);
 		if (isWater) {
-			mo2.keyboard.sendKey("t", 1, 1);
 			this.isFishing = true;
 			mainWindow().webContents.send("fishing-state", this.isFishing);
 			this.reset();
-			mainWindow().webContents.send("chance", this.chance)
 			// Lots of data from the cast packet
 			this.baitTimeInterval = setInterval(() => {
 				this.baitTime++
@@ -191,8 +162,6 @@ export class Fishing {
 			this.waterDepth = +bufferString.match(/(?<=WaterDepth=).+?(?=\,)/g)[0];
 			this.fishingDepth = +bufferString.match(/(?<=FishingDepth=).+?(?=\,)/g)[0];
 			this.throwDistance = +bufferString.match(/(?<=ThrowDistance=).+?(?=\,)/g)[0];
-			this.uuid = bufferString.match(/(?<=K=).+?(?=\,)/g)[0];
-			this.serverTime = +bufferString.match(/(?<=Time=).+?(?=\.)/g)[0];
 
 			// Time stuff
 			const epochSeconds = Math.floor(Date.now() / 1000)
@@ -227,8 +196,6 @@ export class Fishing {
 				this.castHour,
 				this.castMinute,
 				this.throwDistance,
-				this.uuid,
-				this.chance,
 			);
 			mainWindow().webContents.send("line-hp", this.lineHp);
 		}
@@ -241,10 +208,13 @@ export class Fishing {
 
 	async catch(fish) {
 		this.isFishing = false;
+
 		mainWindow().webContents.send("fishing-state", this.isFishing);
+
 		clearInterval(this.inGameMinuteInterval);
+
 		if (this.record) {
-			db.storeCatch({
+			await db.storeCatch({
 				hook: this.hook,
 				bait: this.bait,
 				waterDepth: this.waterDepth,
@@ -254,24 +224,19 @@ export class Fishing {
 				castTime: `${this.castHour}:${this.castMinute}:00`,
 				catchTime: `${this.catchHour}:${this.catchMinute}:00`,
 				fishStrength: this.fishStrength,
-				uuid: this.uuid,
 				damageCount: this.damageCount,
 				maxConsecutiveDamageCount: this.maxConsecutiveDamageCount,
 				pullCount: this.pullCount,
 				maxConsecutivePullCount: this.maxConsecutivePullCount,
-				consecutiveResetCastCount: this.consecutiveResetCastCount,
 				startingFishHealth: this.startingFishHealth,
-				serverTime: this.serverTime,
 				baitTime: this.baitTime,
 				reelTime: this.reelTime,
-				breakTime: this.breakTime,
-				consecutiveResetCastCount: this.consecutiveResetCastCount,
-				chance: this.chance,
 			});
 		}
+
 		mainWindow().webContents.send("catch", fish);
+
 		this.resetCast(false);
-		this.consecutiveResetCastCount = 0;
 	}
 
 	async resetCast(interrupt) {
@@ -280,6 +245,7 @@ export class Fishing {
 			await mo2.keyboard.toggleKey("t", true, 3000);
 			await mo2.keyboard.toggleKey("t", false);
 		}
+
 		await mo2.keyboard.toggleKey("t", false, 100);
 		await mo2.keyboard.toggleKey("t", true, this.throwForce);
 		await mo2.keyboard.toggleKey("t", false);
@@ -311,7 +277,8 @@ export class Fishing {
 		}
 
 		// Catch detection
-		if (catchMatches && fish) {
+		if (catchMatches && fish && this.isFishHooked == true) {
+			console.log(this.isFishing, this.isFishHooked);
 			await this.catch(fish[0]);
 			return;
 		}
@@ -361,7 +328,7 @@ export class Fishing {
 
 		// Cast detection
 		if (packetLength === 645 && bufferHex.slice(38, 40) === "2f") {
-			await this.cast(bufferString, bufferHex);
+			await this.cast(bufferString);
 			return;
 		}
 
@@ -396,7 +363,7 @@ export class Fishing {
 
 		if (packetLength === 645 && bufferHex.slice(38, 40) === "29") {
 			const cut = bufferHex.slice(210);
-			this.bait = hex2a(cut);
+			this.bait = hex2ascii(cut);
 			mainWindow().webContents.send("bait", this.bait);
 			return;
 		}
@@ -413,7 +380,6 @@ export class Fishing {
 			["6"].includes(bufferHex.slice(39, 40))
 		) {
 			this.nibbleCount++;
-			this.prevBiteInter = this.baitTime;
 			this.fishStrength = parseInt(bufferHex.slice(44, 46), 16)
 			return;
 		}

@@ -5,7 +5,8 @@ export default defineConfig({
   build: {
     rollupOptions: {
       external: [
-        'keysender'
+        'keysender',
+        '@libsql/client'
       ]
     }
   },
